@@ -1,0 +1,61 @@
+# Module labels
+MultiDocTemplate=MultiDocTemplate
+ModuleMultiDocTemplateName=MultiDocTemplate
+ModuleMultiDocTemplateDesc=Group-based document templates and archive generation with Dolibarr variable substitution
+
+# Permissions
+Permission240600=Read MultiDocTemplate
+Permission240601=View archives
+Permission240602=Generate archives
+Permission240603=Delete archives
+Permission240604=View templates
+Permission240605=Upload templates
+Permission240606=Delete templates
+
+# Templates
+Templates=Templates
+TemplatesList=Templates List
+UploadNewTemplate=Upload New Template
+SelectTemplate=Select Template
+SelectATemplate=-- Select a template --
+TemplateUploadSuccess=Template uploaded successfully
+TemplateDeleted=Template deleted successfully
+DeleteTemplate=Delete Template
+ConfirmDeleteTemplate=Are you sure you want to delete this template?
+NoTemplatesYet=No templates uploaded yet
+NoTemplatesAvailable=No templates available. Ask your administrator to upload templates for your user groups.
+AllowedFormats=Allowed formats
+ErrorFileExtensionNotAllowed=File extension not allowed. Allowed formats: odt, ods, xls, xlsx, doc, docx, pdf, rtf
+ErrorTemplateNotFound=Template not found
+
+# Archives
+Archives=Archives
+ArchivesList=Archives List
+GenerateArchive=Generate Archive
+ArchiveGeneratedSuccess=Archive generated successfully
+ArchiveDeleted=Archive deleted successfully
+DeleteArchive=Delete Archive
+ConfirmDeleteArchive=Are you sure you want to delete this archive?
+NoArchivesYet=No archives generated yet
+DateGeneration=Generated on
+TagFilter=Tag Filter
+CategoryFilter=Category Filter
+NoFilter=No filter
+RGPD=RGPD
+
+# Actions
+Generate=Generate
+Upload=Upload
+Download=Download
+
+# Status
+Enabled=Enabled
+Disabled=Disabled
+
+# Errors
+ErrorTemplateFileNotFound=Template file not found
+ErrorCanNotCreateDir=Cannot create directory
+ErrorFileUploadFailed=File upload failed
+
+# Other
+FileNotFound=File not found
