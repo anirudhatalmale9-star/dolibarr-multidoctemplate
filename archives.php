@@ -166,6 +166,65 @@ if ($action == 'confirm_delete' && $confirm == 'yes' && $user->hasRight('multido
     exit;
 }
 
+// Upload file directly to archives
+if ($action == 'upload' && $user->hasRight('multidoctemplate', 'archive_creer')) {
+    if (!empty($_FILES['archivefile']['name'])) {
+        $upload_tag = GETPOST('upload_tag', 'alphanohtml');
+        $upload_label = GETPOST('upload_label', 'alphanohtml');
+        $filename = $_FILES['archivefile']['name'];
+
+        // Sanitize filename
+        $sanitized_filename = dol_sanitizeFileName($filename);
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        // Create archive directory
+        $archive_dir = MultiDocArchive::getArchiveDir($object_type, $object->id, $upload_tag);
+        if (!is_dir($archive_dir)) {
+            if (dol_mkdir($archive_dir) < 0) {
+                setEventMessages($langs->trans('ErrorCanNotCreateDir', $archive_dir), null, 'errors');
+                header('Location: '.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type);
+                exit;
+            }
+        }
+
+        // Generate unique filename with timestamp
+        $output_filename = dol_sanitizeFileName($upload_label ?: pathinfo($filename, PATHINFO_FILENAME)).'_'.date('Ymd_His').'.'.$ext;
+        $filepath = $archive_dir.'/'.$output_filename;
+
+        // Move uploaded file
+        if (dol_move_uploaded_file($_FILES['archivefile']['tmp_name'], $filepath, 1, 0, $_FILES['archivefile']['error']) > 0) {
+            // Create archive record
+            $archive->ref = MultiDocArchive::generateRef($object_type, $object->id);
+            $archive->fk_template = 0; // No template, direct upload
+            $archive->object_type = $object_type;
+            $archive->object_id = $object->id;
+            $archive->filename = $output_filename;
+            $archive->filepath = $filepath;
+            $archive->filetype = $ext;
+            $archive->filesize = filesize($filepath);
+            $archive->tag_filter = $upload_tag;
+            $archive->label = $upload_label ?: pathinfo($filename, PATHINFO_FILENAME);
+
+            $result = $archive->create($user);
+
+            if ($result > 0) {
+                setEventMessages($langs->trans('FileUploadSuccess'), null, 'mesgs');
+            } else {
+                // Delete file if DB insert failed
+                dol_delete_file($filepath);
+                setEventMessages($archive->error, null, 'errors');
+            }
+        } else {
+            setEventMessages($langs->trans('ErrorFileUploadFailed'), null, 'errors');
+        }
+    } else {
+        setEventMessages($langs->trans('ErrorFieldRequired', $langs->transnoentitiesnoconv('File')), null, 'errors');
+    }
+
+    header('Location: '.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type);
+    exit;
+}
+
 /*
  * View
  */
@@ -393,6 +452,44 @@ function filterTemplates() {
     }
 
     print '</div>';
+
+    // Upload file directly section
+    print '<br>';
+    print '<div class="tabsAction">';
+    print load_fiche_titre($langs->trans('UploadFileDirectly'), '', '');
+
+    print '<form enctype="multipart/form-data" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'" method="POST">';
+    print '<input type="hidden" name="token" value="'.newToken().'">';
+    print '<input type="hidden" name="action" value="upload">';
+
+    print '<table class="noborder centpercent">';
+
+    // Tag (folder)
+    print '<tr class="oddeven">';
+    print '<td class="titlefield">'.$langs->trans('Tag').' ('.$langs->trans('Folder').')</td>';
+    print '<td><input type="text" name="upload_tag" size="40" class="flat" placeholder="e.g. contracts, invoices, reports"></td>';
+    print '</tr>';
+
+    // Label
+    print '<tr class="oddeven">';
+    print '<td>'.$langs->trans('Label').'</td>';
+    print '<td><input type="text" name="upload_label" size="40" class="flat" placeholder="'.$langs->trans('Optional').'"></td>';
+    print '</tr>';
+
+    // File
+    print '<tr class="oddeven">';
+    print '<td>'.$langs->trans('File').' <span class="star">*</span></td>';
+    print '<td><input type="file" name="archivefile" class="flat" required></td>';
+    print '</tr>';
+
+    print '</table>';
+
+    print '<div class="center" style="margin-top: 10px;">';
+    print '<input type="submit" class="button" value="'.$langs->trans('Upload').'">';
+    print '</div>';
+
+    print '</form>';
+    print '</div>';
 }
 
 // List of archives - File Explorer Style with collapsible folders
@@ -448,11 +545,17 @@ if (is_array($archives) && count($archives) > 0) {
         print '</tr>';
 
         foreach ($tag_archives as $arch) {
-            $label_display = !empty($arch->template_label) ? $arch->template_label : '-';
+            // For direct uploads (no template), show filename as label
+            $label_display = !empty($arch->template_label) ? $arch->template_label : pathinfo($arch->filename, PATHINFO_FILENAME);
+            $is_direct_upload = empty($arch->fk_template) || $arch->fk_template == 0;
             print '<tr class="oddeven archive-row" data-label="'.dol_escape_htmltag(strtolower($label_display)).'" data-filename="'.dol_escape_htmltag(strtolower($arch->filename)).'" data-date="'.$arch->date_generation.'">';
 
-            // Label (template label)
-            print '<td><strong>'.dol_escape_htmltag($label_display).'</strong></td>';
+            // Label (template label or filename for direct uploads)
+            print '<td><strong>'.dol_escape_htmltag($label_display).'</strong>';
+            if ($is_direct_upload) {
+                print ' <span class="badge badge-secondary">'.$langs->trans('DirectUpload').'</span>';
+            }
+            print '</td>';
 
             // Filename (with download link)
             print '<td>';

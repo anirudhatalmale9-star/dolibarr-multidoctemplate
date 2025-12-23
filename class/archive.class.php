@@ -66,10 +66,7 @@ class MultiDocArchive extends CommonObject
             $this->error = 'ErrorRefRequired';
             return -1;
         }
-        if (empty($this->fk_template)) {
-            $this->error = 'ErrorTemplateRequired';
-            return -2;
-        }
+        // fk_template can be 0 for direct uploads
 
         $this->db->begin();
 
@@ -227,7 +224,7 @@ class MultiDocArchive extends CommonObject
         $sql = "SELECT a.rowid, a.ref, a.fk_template, a.object_type, a.object_id,";
         $sql .= " a.filename, a.filepath, a.filetype, a.filesize,";
         $sql .= " a.fk_category, a.tag_filter, a.date_generation, a.fk_user_creat,";
-        $sql .= " t.label as template_label, t.tag as template_tag, t.fk_usergroup";
+        $sql .= " t.label as template_label, COALESCE(a.tag_filter, t.tag) as template_tag, t.fk_usergroup";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as a";
         $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."multidoctemplate_template as t ON t.rowid = a.fk_template";
         $sql .= " WHERE a.entity IN (".getEntity($this->element).")";
@@ -236,7 +233,7 @@ class MultiDocArchive extends CommonObject
         if ($fk_category > 0) {
             $sql .= " AND a.fk_category = ".(int) $fk_category;
         }
-        $sql .= " ORDER BY t.tag ASC, a.date_generation DESC";
+        $sql .= " ORDER BY template_tag ASC, a.date_generation DESC";
 
         dol_syslog(get_class($this)."::fetchAllByObject", LOG_DEBUG);
         $resql = $this->db->query($sql);

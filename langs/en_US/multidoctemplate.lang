@@ -72,3 +72,10 @@ Uncategorized=Uncategorized
 NoTag=No Tag
 Selected=Selected
 None=None
+Optional=Optional
+Folder=Folder
+
+# Direct Upload
+UploadFileDirectly=Upload File Directly
+DirectUpload=Direct Upload
+FileUploadSuccess=File uploaded successfully
