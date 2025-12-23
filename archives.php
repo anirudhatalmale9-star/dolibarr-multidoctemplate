@@ -289,8 +289,8 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
         // Search box
         print '<div class="marginbottomonly">';
         print '<input type="text" id="template_search" class="flat minwidth200" placeholder="'.$langs->trans('Search').'..." onkeyup="filterTemplates()">';
-        print ' <a href="javascript:void(0)" onclick="expandAllFolders()">'.$langs->trans('ExpandAll').'</a>';
-        print ' | <a href="javascript:void(0)" onclick="collapseAllFolders()">'.$langs->trans('CollapseAll').'</a>';
+        print ' <a href="javascript:void(0)" onclick="expandAllFolders()" class="classfortooltip" title="'.$langs->trans('ExpandAll').'">'.img_picto($langs->trans('ExpandAll'), 'folder-open', 'class="pictofixedwidth"').'</a>';
+        print ' <a href="javascript:void(0)" onclick="collapseAllFolders()" class="classfortooltip" title="'.$langs->trans('CollapseAll').'">'.img_picto($langs->trans('CollapseAll'), 'folder', 'class="pictofixedwidth"').'</a>';
         print '</div>';
 
         print '<form action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'" method="POST" id="generate_form">';
@@ -525,8 +525,8 @@ if (is_array($archives) && count($archives) > 0) {
     // Search and controls
     print '<div class="marginbottomonly">';
     print '<input type="text" id="archive_search" class="flat minwidth200" placeholder="'.$langs->trans('Search').'..." onkeyup="filterArchives()">';
-    print ' <a href="javascript:void(0)" onclick="expandAllArchiveFolders()">'.$langs->trans('ExpandAll').'</a>';
-    print ' | <a href="javascript:void(0)" onclick="collapseAllArchiveFolders()">'.$langs->trans('CollapseAll').'</a>';
+    print ' <a href="javascript:void(0)" onclick="expandAllArchiveFolders()" class="classfortooltip" title="'.$langs->trans('ExpandAll').'">'.img_picto($langs->trans('ExpandAll'), 'folder-open', 'class="pictofixedwidth"').'</a>';
+    print ' <a href="javascript:void(0)" onclick="collapseAllArchiveFolders()" class="classfortooltip" title="'.$langs->trans('CollapseAll').'">'.img_picto($langs->trans('CollapseAll'), 'folder', 'class="pictofixedwidth"').'</a>';
     print '</div>';
 
     // File explorer style container

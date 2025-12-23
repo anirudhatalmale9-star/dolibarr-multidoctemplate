@@ -254,7 +254,9 @@ if (empty($sortorder)) $sortorder = 'ASC';
 
 // Expand/Collapse controls
 print '<div style="margin-bottom: 10px;">';
-print load_fiche_titre($langs->trans('TemplatesList'), '<a href="javascript:expandAllFolders();">'.$langs->trans('ExpandAll').'</a> | <a href="javascript:collapseAllFolders();">'.$langs->trans('CollapseAll').'</a>', '');
+$expand_collapse_icons = '<a href="javascript:expandAllFolders();" class="classfortooltip" title="'.$langs->trans('ExpandAll').'">'.img_picto($langs->trans('ExpandAll'), 'folder-open', 'class="pictofixedwidth"').'</a>';
+$expand_collapse_icons .= ' <a href="javascript:collapseAllFolders();" class="classfortooltip" title="'.$langs->trans('CollapseAll').'">'.img_picto($langs->trans('CollapseAll'), 'folder', 'class="pictofixedwidth"').'</a>';
+print load_fiche_titre($langs->trans('TemplatesList'), $expand_collapse_icons, '');
 print '</div>';
 
 $templates = $template->fetchAllByUserGroup($object->id, -1);
