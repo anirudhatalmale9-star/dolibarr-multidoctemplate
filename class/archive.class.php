@@ -227,7 +227,7 @@ class MultiDocArchive extends CommonObject
         $sql = "SELECT a.rowid, a.ref, a.fk_template, a.object_type, a.object_id,";
         $sql .= " a.filename, a.filepath, a.filetype, a.filesize,";
         $sql .= " a.fk_category, a.tag_filter, a.date_generation, a.fk_user_creat,";
-        $sql .= " t.label as template_label, t.fk_usergroup";
+        $sql .= " t.label as template_label, t.tag as template_tag, t.fk_usergroup";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as a";
         $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."multidoctemplate_template as t ON t.rowid = a.fk_template";
         $sql .= " WHERE a.entity IN (".getEntity($this->element).")";
@@ -236,7 +236,7 @@ class MultiDocArchive extends CommonObject
         if ($fk_category > 0) {
             $sql .= " AND a.fk_category = ".(int) $fk_category;
         }
-        $sql .= " ORDER BY a.date_generation DESC";
+        $sql .= " ORDER BY t.tag ASC, a.date_generation DESC";
 
         dol_syslog(get_class($this)."::fetchAllByObject", LOG_DEBUG);
         $resql = $this->db->query($sql);
@@ -258,6 +258,7 @@ class MultiDocArchive extends CommonObject
                 $archive->date_generation = $this->db->jdate($obj->date_generation);
                 $archive->fk_user_creat = $obj->fk_user_creat;
                 $archive->template_label = $obj->template_label;
+                $archive->template_tag = $obj->template_tag;
                 $archive->fk_usergroup = $obj->fk_usergroup;
                 $archives[$obj->rowid] = $archive;
             }

@@ -13,7 +13,36 @@
  */
 
 // Load Dolibarr environment
-require '../main.inc.php';
+$res = 0;
+// Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
+if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
+    $res = @include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
+}
+// Try main.inc.php into web root detected using web root calculated from SCRIPT_FILENAME
+$tmp = empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];
+$tmp2 = realpath(__FILE__);
+$i = strlen($tmp) - 1;
+$j = strlen($tmp2) - 1;
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i] == $tmp2[$j]) {
+    $i--;
+    $j--;
+}
+if (!$res && $i > 0 && file_exists(substr($tmp, 0, ($i + 1))."/main.inc.php")) {
+    $res = @include substr($tmp, 0, ($i + 1))."/main.inc.php";
+}
+if (!$res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php")) {
+    $res = @include dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php";
+}
+// Try main.inc.php using relative path
+if (!$res && file_exists("../main.inc.php")) {
+    $res = @include "../main.inc.php";
+}
+if (!$res && file_exists("../../main.inc.php")) {
+    $res = @include "../../main.inc.php";
+}
+if (!$res) {
+    die("Include of main fails");
+}
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 require_once DOL_DOCUMENT_ROOT.'/contact/class/contact.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
@@ -177,7 +206,7 @@ if ($action == 'delete') {
     print $formconfirm;
 }
 
-// Generate archive section
+// Generate archive section - File Explorer Style
 if ($user->hasRight('multidoctemplate', 'archive_creer')) {
     print '<div class="tabsAction">';
     print load_fiche_titre($langs->trans('GenerateArchive'), '', '');
@@ -186,61 +215,152 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
     $templates = $template->fetchAllForUser($user);
 
     if (is_array($templates) && count($templates) > 0) {
-        print '<form action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'" method="POST">';
+        // Group templates by tag
+        $templates_by_tag = array();
+        foreach ($templates as $tpl) {
+            $tag_label = !empty($tpl->tag) ? $tpl->tag : $langs->trans('NoTag');
+            if (!isset($templates_by_tag[$tag_label])) {
+                $templates_by_tag[$tag_label] = array();
+            }
+            $templates_by_tag[$tag_label][] = $tpl;
+        }
+        ksort($templates_by_tag);
+
+        // Search box
+        print '<div class="marginbottomonly">';
+        print '<input type="text" id="template_search" class="flat minwidth200" placeholder="'.$langs->trans('Search').'..." onkeyup="filterTemplates()">';
+        print ' <a href="javascript:void(0)" onclick="expandAllFolders()">'.$langs->trans('ExpandAll').'</a>';
+        print ' | <a href="javascript:void(0)" onclick="collapseAllFolders()">'.$langs->trans('CollapseAll').'</a>';
+        print '</div>';
+
+        print '<form action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'" method="POST" id="generate_form">';
         print '<input type="hidden" name="token" value="'.newToken().'">';
         print '<input type="hidden" name="action" value="generate">';
+        print '<input type="hidden" name="template_id" id="selected_template_id" value="">';
 
-        print '<div class="fichecenter">';
-        print '<table class="noborder centpercent">';
-        print '<tr class="liste_titre">';
-        print '<th>'.$langs->trans('SelectTemplate').'</th>';
-        if (!empty($object_categories)) {
-            print '<th>'.$langs->trans('CategoryFilter').'</th>';
-        }
-        print '<th></th>';
-        print '</tr>';
+        // File explorer style container
+        print '<div id="template_explorer" class="div-table-responsive" style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background: #fafafa;">';
 
-        print '<tr class="oddeven">';
-        print '<td>';
-        print '<select name="template_id" class="flat minwidth300">';
-        print '<option value="">'.$langs->trans('SelectATemplate').'</option>';
-        $current_group = '';
-        foreach ($templates as $tpl) {
-            if ($current_group != $tpl->usergroup_name) {
-                if (!empty($current_group)) {
-                    print '</optgroup>';
+        foreach ($templates_by_tag as $tag_label => $tag_templates) {
+            $tag_id = 'tag_'.md5($tag_label);
+            $count = count($tag_templates);
+
+            // Folder header (collapsible) - Dolibarr style
+            print '<div class="template-folder" data-tag="'.dol_escape_htmltag(strtolower($tag_label)).'">';
+            print '<div class="folder-header" onclick="toggleFolder(\''.$tag_id.'\')" style="cursor: pointer; padding: 8px; background: #e8e8e8; margin-bottom: 2px; border-radius: 3px;">';
+            print '<span id="'.$tag_id.'_icon">'.img_picto('', '1downarrow', 'class="imgdownforline"').'</span> ';
+            print '<strong>'.img_picto('', 'folder', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($tag_label).'</strong>';
+            print ' <span class="opacitymedium">('.$count.')</span>';
+            print '</div>';
+
+            // Folder content (templates list)
+            print '<div id="'.$tag_id.'_content" class="folder-content" style="margin-left: 25px; display: block;">';
+            foreach ($tag_templates as $tpl) {
+                print '<div class="template-item" data-label="'.dol_escape_htmltag(strtolower($tpl->label)).'" style="padding: 5px; border-bottom: 1px solid #eee;">';
+                print '<a href="javascript:void(0)" onclick="selectTemplate('.$tpl->id.', \''.dol_escape_js($tpl->label).'\')" style="text-decoration: none;">';
+                print img_picto('', 'file', 'style="vertical-align: middle;"').' ';
+                print '<span class="template-label">'.dol_escape_htmltag($tpl->label).'</span>';
+                print ' <span class="opacitymedium">('.strtoupper($tpl->filetype).')</span>';
+                print '</a>';
+                // Info icon with description tooltip
+                if (!empty($tpl->description)) {
+                    print ' '.img_picto(dol_escape_htmltag($tpl->description), 'info', 'class="classfortooltip" title="'.dol_escape_htmltag($tpl->description).'"');
                 }
-                print '<optgroup label="'.dol_escape_htmltag($tpl->usergroup_name).'">';
-                $current_group = $tpl->usergroup_name;
+                print '</div>';
             }
-            print '<option value="'.$tpl->id.'">'.dol_escape_htmltag($tpl->label).' ('.strtoupper($tpl->filetype).')</option>';
-        }
-        if (!empty($current_group)) {
-            print '</optgroup>';
-        }
-        print '</select>';
-        print '</td>';
-
-        // Category filter dropdown
-        if (!empty($object_categories)) {
-            print '<td>';
-            print '<select name="category_id" class="flat minwidth200">';
-            print '<option value="">'.$langs->trans('NoFilter').'</option>';
-            foreach ($object_categories as $cat_id => $cat_label) {
-                print '<option value="'.$cat_id.'">'.dol_escape_htmltag($cat_label).'</option>';
-            }
-            print '</select>';
-            print '</td>';
+            print '</div>'; // folder-content
+            print '</div>'; // template-folder
         }
 
-        print '<td>';
-        print '<input type="submit" class="button button-primary" value="'.$langs->trans('Generate').'">';
-        print '</td>';
-        print '</tr>';
+        print '</div>'; // template_explorer
 
-        print '</table>';
+        // Selected template display and generate button
+        print '<div class="margintoponlyonly" style="margin-top: 15px;">';
+        print '<strong>'.$langs->trans('Selected').':</strong> <span id="selected_template_name" class="opacitymedium">'.$langs->trans('None').'</span>';
+        print ' &nbsp; ';
+        print '<input type="submit" class="button button-primary" value="'.$langs->trans('Generate').'" id="generate_btn" disabled>';
         print '</div>';
+
         print '</form>';
+
+        // JavaScript for file explorer functionality
+        print '<script type="text/javascript">
+var downArrowHtml = \''.img_picto('', '1downarrow', 'class="imgdownforline"').'\';
+var rightArrowHtml = \''.img_picto('', '1rightarrow', 'class="imgdownforline"').'\';
+
+function toggleFolder(tagId) {
+    var content = document.getElementById(tagId + "_content");
+    var icon = document.getElementById(tagId + "_icon");
+    if (content.style.display === "none") {
+        content.style.display = "block";
+        icon.innerHTML = downArrowHtml;
+    } else {
+        content.style.display = "none";
+        icon.innerHTML = rightArrowHtml;
+    }
+}
+
+function expandAllFolders() {
+    var contents = document.querySelectorAll(".folder-content");
+    var icons = document.querySelectorAll(".template-folder [id$=\'_icon\']");
+    contents.forEach(function(el) { el.style.display = "block"; });
+    icons.forEach(function(el) { el.innerHTML = downArrowHtml; });
+}
+
+function collapseAllFolders() {
+    var contents = document.querySelectorAll(".folder-content");
+    var icons = document.querySelectorAll(".template-folder [id$=\'_icon\']");
+    contents.forEach(function(el) { el.style.display = "none"; });
+    icons.forEach(function(el) { el.innerHTML = rightArrowHtml; });
+}
+
+function selectTemplate(id, label) {
+    document.getElementById("selected_template_id").value = id;
+    document.getElementById("selected_template_name").innerHTML = label;
+    document.getElementById("selected_template_name").className = "";
+    document.getElementById("generate_btn").disabled = false;
+    // Highlight selected
+    var items = document.querySelectorAll(".template-item");
+    items.forEach(function(el) { el.style.background = ""; });
+    event.target.closest(".template-item").style.background = "#d4edda";
+}
+
+function filterTemplates() {
+    var search = document.getElementById("template_search").value.toLowerCase();
+    var folders = document.querySelectorAll(".template-folder");
+
+    folders.forEach(function(folder) {
+        var items = folder.querySelectorAll(".template-item");
+        var hasVisible = false;
+
+        items.forEach(function(item) {
+            var label = item.getAttribute("data-label");
+            if (label.indexOf(search) > -1 || search === "") {
+                item.style.display = "block";
+                hasVisible = true;
+            } else {
+                item.style.display = "none";
+            }
+        });
+
+        // Show/hide folder based on whether it has visible items
+        var tag = folder.getAttribute("data-tag");
+        if (hasVisible || tag.indexOf(search) > -1 || search === "") {
+            folder.style.display = "block";
+            // Expand folder when searching
+            if (search !== "") {
+                var content = folder.querySelector(".folder-content");
+                var icon = folder.querySelector("[id$=\'_icon\']");
+                if (content) content.style.display = "block";
+                if (icon) icon.innerHTML = "[-]";
+            }
+        } else {
+            folder.style.display = "none";
+        }
+    });
+}
+</script>';
+
     } else {
         print '<div class="opacitymedium">'.$langs->trans('NoTemplatesAvailable').'</div>';
     }
@@ -248,90 +368,207 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
     print '</div>';
 }
 
-// List of archives
+// List of archives - File Explorer Style with collapsible folders
 print '<br>';
 print load_fiche_titre($langs->trans('ArchivesList'), '', '');
 
 $archives = $archive->fetchAllByObject($object_type, $object->id);
 
-print '<div class="div-table-responsive">';
-print '<table class="noborder centpercent">';
-print '<tr class="liste_titre">';
-print '<th>'.$langs->trans('Ref').'</th>';
-print '<th>'.$langs->trans('Template').'</th>';
-print '<th>'.$langs->trans('Filename').'</th>';
-print '<th>'.$langs->trans('Type').'</th>';
-print '<th class="right">'.$langs->trans('Size').'</th>';
-print '<th>'.$langs->trans('TagFilter').'</th>';
-print '<th class="center">'.$langs->trans('DateGeneration').'</th>';
-print '<th class="center">'.$langs->trans('Actions').'</th>';
-print '</tr>';
-
 if (is_array($archives) && count($archives) > 0) {
+    // Group archives by tag
+    $archives_by_tag = array();
     foreach ($archives as $arch) {
-        print '<tr class="oddeven">';
-
-        // Ref
-        print '<td>'.$arch->ref.'</td>';
-
-        // Template
-        print '<td>'.dol_escape_htmltag($arch->template_label).'</td>';
-
-        // Filename
-        print '<td>';
-        if (file_exists($arch->filepath)) {
-            $relative_path = str_replace(DOL_DATA_ROOT.'/multidoctemplate/', '', $arch->filepath);
-            print '<a href="'.DOL_URL_ROOT.'/document.php?modulepart=multidoctemplate&file='.urlencode($relative_path).'" target="_blank">';
-            print img_picto('', 'file').' '.dol_escape_htmltag($arch->filename);
-            print '</a>';
-        } else {
-            print '<span class="opacitymedium">'.dol_escape_htmltag($arch->filename).' ('.$langs->trans('FileNotFound').')</span>';
+        $tag_label = !empty($arch->template_tag) ? $arch->template_tag : $langs->trans('NoTag');
+        if (!isset($archives_by_tag[$tag_label])) {
+            $archives_by_tag[$tag_label] = array();
         }
-        print '</td>';
-
-        // Type
-        print '<td>'.strtoupper($arch->filetype).'</td>';
-
-        // Size
-        print '<td class="right">'.dol_print_size($arch->filesize).'</td>';
-
-        // Tag filter
-        print '<td>';
-        if (!empty($arch->tag_filter)) {
-            print '<span class="badge badge-secondary">'.dol_escape_htmltag($arch->tag_filter).'</span>';
-        } else {
-            print '-';
-        }
-        print '</td>';
-
-        // Date generation
-        print '<td class="center">'.dol_print_date($arch->date_generation, 'dayhour').'</td>';
-
-        // Actions
-        print '<td class="center nowraponall">';
-        // Download
-        if (file_exists($arch->filepath)) {
-            $relative_path = str_replace(DOL_DATA_ROOT.'/multidoctemplate/', '', $arch->filepath);
-            print '<a href="'.DOL_URL_ROOT.'/document.php?modulepart=multidoctemplate&file='.urlencode($relative_path).'" target="_blank">';
-            print img_picto($langs->trans('Download'), 'download');
-            print '</a> ';
-        }
-        // Delete
-        if ($user->hasRight('multidoctemplate', 'archive_supprimer')) {
-            print '<a class="deletefilelink" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'&action=delete&archive_id='.$arch->id.'&token='.newToken().'">';
-            print img_picto($langs->trans('Delete'), 'delete');
-            print '</a>';
-        }
-        print '</td>';
-
-        print '</tr>';
+        $archives_by_tag[$tag_label][] = $arch;
     }
-} else {
-    print '<tr class="oddeven"><td colspan="8" class="opacitymedium">'.$langs->trans('NoArchivesYet').'</td></tr>';
+    ksort($archives_by_tag);
+
+    // Search and controls
+    print '<div class="marginbottomonly">';
+    print '<input type="text" id="archive_search" class="flat minwidth200" placeholder="'.$langs->trans('Search').'..." onkeyup="filterArchives()">';
+    print ' <a href="javascript:void(0)" onclick="expandAllArchiveFolders()">'.$langs->trans('ExpandAll').'</a>';
+    print ' | <a href="javascript:void(0)" onclick="collapseAllArchiveFolders()">'.$langs->trans('CollapseAll').'</a>';
+    print '</div>';
+
+    // File explorer style container
+    print '<div id="archive_explorer" class="div-table-responsive" style="max-height: 500px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background: #fafafa;">';
+
+    foreach ($archives_by_tag as $tag_label => $tag_archives) {
+        $tag_id = 'arch_tag_'.md5($tag_label);
+        $count = count($tag_archives);
+
+        // Folder header (collapsible) - Dolibarr style
+        print '<div class="archive-folder" data-tag="'.dol_escape_htmltag(strtolower($tag_label)).'">';
+        print '<div class="folder-header" onclick="toggleArchiveFolder(\''.$tag_id.'\')" style="cursor: pointer; padding: 8px; background: #e8e8e8; margin-bottom: 2px; border-radius: 3px;">';
+        print '<span id="'.$tag_id.'_icon">'.img_picto('', '1downarrow', 'class="imgdownforline"').'</span> ';
+        print '<strong>'.img_picto('', 'folder', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($tag_label).'</strong>';
+        print ' <span class="opacitymedium">('.$count.' '.$langs->trans('Files').')</span>';
+        print '</div>';
+
+        // Folder content (archives list)
+        print '<div id="'.$tag_id.'_content" class="archive-folder-content" style="margin-left: 10px; display: block;">';
+
+        // Table header for this folder
+        print '<table class="noborder centpercent" style="margin-bottom: 10px;">';
+        print '<tr class="liste_titre">';
+        print '<th class="sortable" onclick="sortArchiveTable(\''.$tag_id.'\', 0)" style="cursor: pointer;">'.$langs->trans('Label').' ↕</th>';
+        print '<th class="sortable" onclick="sortArchiveTable(\''.$tag_id.'\', 1)" style="cursor: pointer;">'.$langs->trans('Filename').' ↕</th>';
+        print '<th class="center sortable" onclick="sortArchiveTable(\''.$tag_id.'\', 2)" style="cursor: pointer;">'.$langs->trans('DateGeneration').' ↕</th>';
+        print '<th class="center">'.$langs->trans('Actions').'</th>';
+        print '</tr>';
+
+        foreach ($tag_archives as $arch) {
+            $label_display = !empty($arch->template_label) ? $arch->template_label : '-';
+            print '<tr class="oddeven archive-row" data-label="'.dol_escape_htmltag(strtolower($label_display)).'" data-filename="'.dol_escape_htmltag(strtolower($arch->filename)).'" data-date="'.$arch->date_generation.'">';
+
+            // Label (template label)
+            print '<td><strong>'.dol_escape_htmltag($label_display).'</strong></td>';
+
+            // Filename (with download link)
+            print '<td>';
+            if (file_exists($arch->filepath)) {
+                $relative_path = str_replace(DOL_DATA_ROOT.'/multidoctemplate/', '', $arch->filepath);
+                print '<a href="'.DOL_URL_ROOT.'/document.php?modulepart=multidoctemplate&file='.urlencode($relative_path).'" target="_blank">';
+                print img_picto('', 'file', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($arch->filename);
+                print '</a>';
+            } else {
+                print '<span class="opacitymedium">'.img_picto('', 'file').' '.dol_escape_htmltag($arch->filename).' ('.$langs->trans('FileNotFound').')</span>';
+            }
+            print '</td>';
+
+            // Date generation
+            print '<td class="center">'.dol_print_date($arch->date_generation, 'dayhour').'</td>';
+
+            // Actions
+            print '<td class="center nowraponall">';
+            if (file_exists($arch->filepath)) {
+                $relative_path = str_replace(DOL_DATA_ROOT.'/multidoctemplate/', '', $arch->filepath);
+                print '<a href="'.DOL_URL_ROOT.'/document.php?modulepart=multidoctemplate&file='.urlencode($relative_path).'" target="_blank">';
+                print img_picto($langs->trans('Download'), 'download');
+                print '</a> ';
+            }
+            if ($user->hasRight('multidoctemplate', 'archive_supprimer')) {
+                print '<a class="deletefilelink" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'&action=delete&archive_id='.$arch->id.'&token='.newToken().'">';
+                print img_picto($langs->trans('Delete'), 'delete');
+                print '</a>';
+            }
+            print '</td>';
+
+            print '</tr>';
+        }
+
+        print '</table>';
+        print '</div>'; // archive-folder-content
+        print '</div>'; // archive-folder
+    }
+
+    print '</div>'; // archive_explorer
+
+    // JavaScript for archive explorer functionality
+    print '<script type="text/javascript">
+var archDownArrowHtml = \''.img_picto('', '1downarrow', 'class="imgdownforline"').'\';
+var archRightArrowHtml = \''.img_picto('', '1rightarrow', 'class="imgdownforline"').'\';
+
+function toggleArchiveFolder(tagId) {
+    var content = document.getElementById(tagId + "_content");
+    var icon = document.getElementById(tagId + "_icon");
+    if (content.style.display === "none") {
+        content.style.display = "block";
+        icon.innerHTML = archDownArrowHtml;
+    } else {
+        content.style.display = "none";
+        icon.innerHTML = archRightArrowHtml;
+    }
 }
 
-print '</table>';
-print '</div>';
+function expandAllArchiveFolders() {
+    var contents = document.querySelectorAll(".archive-folder-content");
+    var icons = document.querySelectorAll(".archive-folder [id$=\'_icon\']");
+    contents.forEach(function(el) { el.style.display = "block"; });
+    icons.forEach(function(el) { el.innerHTML = archDownArrowHtml; });
+}
+
+function collapseAllArchiveFolders() {
+    var contents = document.querySelectorAll(".archive-folder-content");
+    var icons = document.querySelectorAll(".archive-folder [id$=\'_icon\']");
+    contents.forEach(function(el) { el.style.display = "none"; });
+    icons.forEach(function(el) { el.innerHTML = archRightArrowHtml; });
+}
+
+function filterArchives() {
+    var search = document.getElementById("archive_search").value.toLowerCase();
+    var folders = document.querySelectorAll(".archive-folder");
+
+    folders.forEach(function(folder) {
+        var rows = folder.querySelectorAll(".archive-row");
+        var hasVisible = false;
+
+        rows.forEach(function(row) {
+            var filename = row.getAttribute("data-filename");
+            if (filename.indexOf(search) > -1 || search === "") {
+                row.style.display = "";
+                hasVisible = true;
+            } else {
+                row.style.display = "none";
+            }
+        });
+
+        var tag = folder.getAttribute("data-tag");
+        if (hasVisible || tag.indexOf(search) > -1 || search === "") {
+            folder.style.display = "block";
+            if (search !== "") {
+                var content = folder.querySelector(".archive-folder-content");
+                var icon = folder.querySelector("[id$=\'_icon\']");
+                if (content) content.style.display = "block";
+                if (icon) icon.innerHTML = "[-]";
+            }
+        } else {
+            folder.style.display = "none";
+        }
+    });
+}
+
+var sortDirections = {};
+function sortArchiveTable(tagId, colIndex) {
+    var content = document.getElementById(tagId + "_content");
+    var table = content.querySelector("table");
+    var tbody = table.querySelector("tbody") || table;
+    var rows = Array.from(tbody.querySelectorAll("tr.archive-row"));
+
+    var key = tagId + "_" + colIndex;
+    sortDirections[key] = !sortDirections[key];
+    var ascending = sortDirections[key];
+
+    rows.sort(function(a, b) {
+        var aVal, bVal;
+        if (colIndex === 0) {
+            aVal = a.getAttribute("data-label");
+            bVal = b.getAttribute("data-label");
+        } else if (colIndex === 1) {
+            aVal = a.getAttribute("data-filename");
+            bVal = b.getAttribute("data-filename");
+        } else {
+            aVal = a.getAttribute("data-date");
+            bVal = b.getAttribute("data-date");
+        }
+
+        if (aVal < bVal) return ascending ? -1 : 1;
+        if (aVal > bVal) return ascending ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(function(row) {
+        tbody.appendChild(row);
+    });
+}
+</script>';
+
+} else {
+    print '<div class="opacitymedium">'.$langs->trans('NoArchivesYet').'</div>';
+}
 
 llxFooter();
 $db->close();

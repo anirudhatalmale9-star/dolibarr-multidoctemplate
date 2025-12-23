@@ -1,120 +1,140 @@
-# MultiDocTemplate
+# MultiDocTemplate - Dolibarr Module
 
-Group-based document templates and archive generation module for Dolibarr 23.0.0-alpha.
+Group-based document templates and archive generation module for Dolibarr 23.0+
 
 ## Features
 
-- **User Group Templates**: Upload document templates (ODT, ODS, XLS, XLSX, DOC, DOCX, PDF, RTF) organized by user group
-- **Archive Generation**: Generate documents from templates with Dolibarr's variable substitution engine
-- **Tag-based Organization**: Archives are organized in folders based on thirdparty/contact categories
-- **Native Integration**: Tabs appear directly on User Group, Third Party, and Contact cards
-- **Upgrade-safe**: Uses only hooks and $this->tabs - no core file modifications
+- Upload document templates by user group
+- Generate documents from Third Party and Contact cards
+- Variable substitution in ODT, DOCX, XLSX, ODS formats
+- Tag-based folder organization
+- File explorer style interface with collapsible folders
+- Search and sort functionality
 
-## Requirements
+## Supported Formats
 
-- Dolibarr 23.0.0-alpha or later
-- PHP 7.4+
-- Required modules: Societe (Third Parties), User
+| Format | Variable Substitution | Notes |
+|--------|----------------------|-------|
+| ODT | Yes | LibreOffice Writer - Full support |
+| ODS | Yes | LibreOffice Calc - Full support |
+| DOCX | Yes | Microsoft Word - Full support |
+| XLSX | Yes | Microsoft Excel - Full support |
+| PDF | No | Copy only |
+| DOC | No | Copy only |
+| XLS | No | Copy only |
+| RTF | No | Copy only |
+
+## Substitution Variables
+
+### Thirdparty (Company) Variables
+| Variable | Description |
+|----------|-------------|
+| {company_name} | Company name |
+| {company_name_alias} | Company alias |
+| {company_address} | Address |
+| {company_zip} | Postal code |
+| {company_town} | City |
+| {company_country} | Country name |
+| {company_country_code} | Country code (ES, FR, US...) |
+| {company_state} | State/Province |
+| {company_phone} | Phone |
+| {company_fax} | Fax |
+| {company_email} | Email |
+| {company_web} | Website |
+| {company_customercode} | Customer code |
+| {company_idprof1} to {company_idprof6} | Professional IDs |
+| {company_vatnumber} | VAT number |
+| {company_capital} | Capital |
+| {company_note_public} | Public note |
+| {company_note_private} | Private note |
+| {company_default_bank_iban} | Bank IBAN |
+| {company_default_bank_bic} | Bank BIC |
+| {company_logo} | Company logo URL |
+| {company_options_XXX} | Extra fields (replace XXX with field code) |
+
+### Contact Variables
+| Variable | Description |
+|----------|-------------|
+| {contact_civility} | Title (Mr, Mrs...) |
+| {contact_firstname} | First name |
+| {contact_lastname} | Last name |
+| {contact_fullname} | Full name |
+| {contact_poste} | Job position |
+| {contact_address} | Address |
+| {contact_zip} | Postal code |
+| {contact_town} | City |
+| {contact_phone} | Phone |
+| {contact_phone_mobile} | Mobile |
+| {contact_email} | Email |
+| {contact_birthday} | Birthday |
+| {contact_photo} | Contact photo URL |
+| {contact_options_XXX} | Extra fields |
+
+### Logged-in User Variables
+| Variable | Description |
+|----------|-------------|
+| {user_login} | Username |
+| {user_firstname} | First name |
+| {user_lastname} | Last name |
+| {user_fullname} | Full name |
+| {user_email} | Email |
+| {user_phone} | Office phone |
+| {user_phone_mobile} | Mobile |
+| {user_signature} | Signature |
+| {user_job} | Job title |
+| {user_options_XXX} | Extra fields |
+
+### My Company Variables
+| Variable | Description |
+|----------|-------------|
+| {mycompany_name} | Company name |
+| {mycompany_address} | Address |
+| {mycompany_zip} | Postal code |
+| {mycompany_town} | City |
+| {mycompany_country} | Country |
+| {mycompany_phone} | Phone |
+| {mycompany_email} | Email |
+| {mycompany_vatnumber} | VAT number |
+| {mycompany_logo} | Company logo URL |
+
+### Date Variables
+| Variable | Description |
+|----------|-------------|
+| {date} | Current date |
+| {datehour} | Current date and time |
+| {year} | Year |
+| {month} | Month (01-12) |
+| {day} | Day (01-31) |
+| {current_date} | Current date |
+| {current_datehour} | Current date and time |
+| {current_date_locale} | Date in locale format |
+| {current_datehour_locale} | Date/time in locale format |
 
 ## Installation
 
-1. Extract the `multidoctemplate` folder to `htdocs/custom/` in your Dolibarr installation
-2. Go to **Home > Setup > Modules**
-3. Find "MultiDocTemplate" under the Tools family
-4. Click to enable the module
-5. Configure permissions for users/groups
-
-## Directory Structure
-
-```
-multidoctemplate/
-├── admin/                 # Module configuration pages
-├── class/                 # PHP classes
-│   ├── template.class.php      # Template management
-│   ├── archive.class.php       # Archive management
-│   └── documentgenerator.class.php  # Document generation with substitution
-├── core/modules/          # Module descriptor
-├── langs/                 # Language files
-├── sql/                   # Database schema
-├── templates.php          # Template upload interface (user groups)
-├── archives.php           # Archive generation interface (thirdparty/contacts)
-└── index.php              # Module home page
-```
+1. Extract to htdocs/custom/multidoctemplate/
+2. Go to Home > Setup > Modules
+3. Activate "MultiDocTemplate"
 
 ## Usage
 
-### Uploading Templates
+### Upload Templates
+1. Go to Users & Groups > Groups > select group > Templates tab
+2. Fill in Tag (folder) and Label
+3. Upload template file (.odt, .docx, .xlsx, etc.)
 
-1. Go to **Users & Groups > Groups**
-2. Select a user group
-3. Click the **Templates** tab
-4. Upload ODT templates with Dolibarr substitution variables
+### Generate Documents
+1. Go to Third Parties or Contacts
+2. Select a record > Archives tab
+3. Select template and click Generate
 
-### Template Variables
+## Notes
 
-Use Dolibarr's standard substitution variables in your ODT templates:
-
-**Third Party:**
-- `{THIRDPARTY_NAME}` - Company name
-- `{THIRDPARTY_ADDRESS}` - Address
-- `{THIRDPARTY_ZIP}` - Postal code
-- `{THIRDPARTY_TOWN}` - City
-- `{THIRDPARTY_COUNTRY}` - Country
-- `{THIRDPARTY_EMAIL}` - Email
-- `{THIRDPARTY_PHONE}` - Phone
-- `{THIRDPARTY_VAT_INTRA}` - VAT number
-
-**Contact:**
-- `{CONTACT_FIRSTNAME}` - First name
-- `{CONTACT_LASTNAME}` - Last name
-- `{CONTACT_FULLNAME}` - Full name
-- `{CONTACT_EMAIL}` - Email
-- `{CONTACT_PHONE_PRO}` - Professional phone
-
-**Your Company:**
-- `{MYCOMPANY_NAME}` - Your company name
-- `{MYCOMPANY_ADDRESS}` - Your address
-- etc.
-
-**Date/Time:**
-- `{DATE_NOW}` - Current date
-- `{DATETIME_NOW}` - Current date and time
-- `{YEAR}`, `{MONTH}`, `{DAY}` - Date parts
-
-### Generating Archives
-
-1. Go to a Third Party or Contact card
-2. Click the **Archives** tab
-3. Select a template from the dropdown
-4. Optionally select a category filter for folder organization
-5. Click **Generate**
-
-## File Storage
-
-- **Templates**: `DOL_DATA_ROOT/multidoctemplate/templates/group_{id}/`
-- **Archives**: `DOL_DATA_ROOT/multidoctemplate/archives/{type}_{id}/{tag}/`
-
-## Permissions
-
-| Permission | Description |
-|------------|-------------|
-| `lire` | Read module |
-| `archive_voir` | View archives |
-| `archive_creer` | Generate archives |
-| `archive_supprimer` | Delete archives |
-| `template_voir` | View templates |
-| `template_creer` | Upload templates |
-| `template_supprimer` | Delete templates |
-
-## Database Tables
-
-- `llx_multidoctemplate_template` - Stores template metadata
-- `llx_multidoctemplate_archive` - Stores generated archive metadata
+- When generating from Contact, both contact AND company variables are available
+- Extra fields: {xxx_options_FIELDCODE}
+- Logo variables return URLs for use in HTML templates
+- PDF/RTF files are copied without substitution
 
 ## License
 
-GNU General Public License v3.0
-
-## Support
-
-For issues or feature requests, please contact the developer.
+GPL v3+

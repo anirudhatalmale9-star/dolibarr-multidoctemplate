@@ -39,7 +39,15 @@ class modMultiDocTemplate extends DolibarrModules
         // Module label
         $this->name = preg_replace('/^mod/i', '', get_class($this));
         $this->description = 'Group-based document templates and archive generation';
-        $this->descriptionlong = 'Upload document templates by user group and generate archives with Dolibarr variable substitution';
+        $this->descriptionlong = 'Upload document templates (ODT, DOCX, XLSX, ODS) by user group and generate archives with Dolibarr variable substitution.<br><br>'.
+            '<strong>Supported formats:</strong> ODT, ODS, XLSX, DOCX, PDF, DOC, XLS, RTF<br><br>'.
+            '<strong>Available substitution variables:</strong><br>'.
+            '<em>Thirdparty:</em> {company_name}, {company_address}, {company_zip}, {company_town}, {company_country}, {company_phone}, {company_email}, {company_web}, {company_vatnumber}, {company_idprof1}-{company_idprof6}, {company_customercode}, {company_note_public}, {company_options_XXX}<br>'.
+            '<em>Contact:</em> {contact_firstname}, {contact_lastname}, {contact_fullname}, {contact_email}, {contact_phone}, {contact_address}, {contact_poste}, {contact_options_XXX}<br>'.
+            '<em>Logged-in User:</em> {user_login}, {user_firstname}, {user_lastname}, {user_fullname}, {user_email}, {user_phone}, {user_signature}, {user_job}, {user_options_XXX}<br>'.
+            '<em>My Company:</em> {mycompany_name}, {mycompany_address}, {mycompany_phone}, {mycompany_email}, {mycompany_vatnumber}, etc.<br>'.
+            '<em>Dates:</em> {current_date}, {current_datehour}, {current_date_locale}, {current_datehour_locale}, {date}, {year}, {month}, {day}<br><br>'.
+            '<em>Note: Replace XXX with your extra field code for custom fields.</em>';
 
         // Version
         $this->version = '1.0.0';
@@ -175,25 +183,8 @@ class modMultiDocTemplate extends DolibarrModules
         $this->rights[$r][5] = '';
         $r++;
 
-        // Menus
+        // Menus - No left menu, module works only through tabs on User Groups, Third Party and Contact cards
         $this->menu = array();
-        $r = 0;
-
-        // Left menu entry under Tools
-        $this->menu[$r++] = array(
-            'fk_menu' => 'fk_mainmenu=tools',
-            'type' => 'left',
-            'titre' => 'MultiDocTemplate',
-            'mainmenu' => 'tools',
-            'leftmenu' => 'multidoctemplate',
-            'url' => '/multidoctemplate/index.php',
-            'langs' => 'multidoctemplate@multidoctemplate',
-            'position' => 100,
-            'enabled' => '$conf->multidoctemplate->enabled',
-            'perms' => '$user->hasRight("multidoctemplate","lire")',
-            'target' => '',
-            'user' => 2
-        );
     }
 
     /**

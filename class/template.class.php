@@ -23,6 +23,7 @@ class MultiDocTemplate extends CommonObject
     public $ref;
     public $label;
     public $description;
+    public $tag;
     public $fk_usergroup;
     public $filename;
     public $filepath;
@@ -90,12 +91,13 @@ class MultiDocTemplate extends CommonObject
         $this->db->begin();
 
         $sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
-        $sql .= "ref, label, description, fk_usergroup, filename, filepath, filetype, filesize, mime_type,";
+        $sql .= "ref, label, description, tag, fk_usergroup, filename, filepath, filetype, filesize, mime_type,";
         $sql .= "active, date_creation, fk_user_creat, entity";
         $sql .= ") VALUES (";
         $sql .= "'".$this->db->escape($this->ref)."',";
         $sql .= "'".$this->db->escape($this->label)."',";
         $sql .= "'".$this->db->escape($this->description)."',";
+        $sql .= "'".$this->db->escape($this->tag)."',";
         $sql .= $this->fk_usergroup.",";
         $sql .= "'".$this->db->escape($this->filename)."',";
         $sql .= "'".$this->db->escape($this->filepath)."',";
@@ -147,7 +149,7 @@ class MultiDocTemplate extends CommonObject
     {
         global $conf;
 
-        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.fk_usergroup,";
+        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_usergroup,";
         $sql .= " t.filename, t.filepath, t.filetype, t.filesize, t.mime_type,";
         $sql .= " t.active, t.date_creation, t.date_modification,";
         $sql .= " t.fk_user_creat, t.fk_user_modif, t.entity";
@@ -170,6 +172,7 @@ class MultiDocTemplate extends CommonObject
                 $this->ref = $obj->ref;
                 $this->label = $obj->label;
                 $this->description = $obj->description;
+                $this->tag = $obj->tag;
                 $this->fk_usergroup = $obj->fk_usergroup;
                 $this->filename = $obj->filename;
                 $this->filepath = $obj->filepath;
@@ -219,6 +222,21 @@ class MultiDocTemplate extends CommonObject
             // if ($result < 0) $error++;
         }
 
+        // First delete all archives that reference this template
+        if (!$error) {
+            $sql = "DELETE FROM ".MAIN_DB_PREFIX."multidoctemplate_archive";
+            $sql .= " WHERE fk_template = ".(int) $this->id;
+
+            dol_syslog(get_class($this)."::delete archives", LOG_DEBUG);
+            $resql = $this->db->query($sql);
+
+            if (!$resql) {
+                $this->error = $this->db->lasterror();
+                $error++;
+            }
+        }
+
+        // Then delete the template
         if (!$error) {
             $sql = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_element;
             $sql .= " WHERE rowid = ".(int) $this->id;
@@ -254,7 +272,7 @@ class MultiDocTemplate extends CommonObject
 
         $templates = array();
 
-        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.fk_usergroup,";
+        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_usergroup,";
         $sql .= " t.filename, t.filepath, t.filetype, t.filesize, t.mime_type,";
         $sql .= " t.active, t.date_creation";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
@@ -263,7 +281,7 @@ class MultiDocTemplate extends CommonObject
         if ($active >= 0) {
             $sql .= " AND t.active = ".(int) $active;
         }
-        $sql .= " ORDER BY t.label ASC";
+        $sql .= " ORDER BY t.tag ASC, t.label ASC";
 
         dol_syslog(get_class($this)."::fetchAllByUserGroup", LOG_DEBUG);
         $resql = $this->db->query($sql);
@@ -275,6 +293,7 @@ class MultiDocTemplate extends CommonObject
                 $template->ref = $obj->ref;
                 $template->label = $obj->label;
                 $template->description = $obj->description;
+                $template->tag = $obj->tag;
                 $template->fk_usergroup = $obj->fk_usergroup;
                 $template->filename = $obj->filename;
                 $template->filepath = $obj->filepath;
@@ -305,18 +324,42 @@ class MultiDocTemplate extends CommonObject
 
         $templates = array();
 
-        // Get user's groups
-        $usergroups = $user->listOfGroups($user->id);
-        if (empty($usergroups)) {
-            return $templates;
-        }
+        // Get user's groups directly from database
+        $sql_groups = "SELECT fk_usergroup FROM ".MAIN_DB_PREFIX."usergroup_user";
+        $sql_groups .= " WHERE fk_user = ".(int) $user->id;
+        $sql_groups .= " AND entity IN (".getEntity('usergroup').")";
+
+        dol_syslog(get_class($this)."::fetchAllForUser get groups", LOG_DEBUG);
+        $resql_groups = $this->db->query($sql_groups);
 
         $groupids = array();
-        foreach ($usergroups as $group) {
-            $groupids[] = (int) $group['id'];
+        if ($resql_groups) {
+            while ($obj_group = $this->db->fetch_object($resql_groups)) {
+                $groupids[] = (int) $obj_group->fk_usergroup;
+            }
+            $this->db->free($resql_groups);
         }
 
-        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.fk_usergroup,";
+        // If user has no groups, return empty (or return all templates if user is admin)
+        if (empty($groupids)) {
+            // If user is admin, show all templates
+            if ($user->admin) {
+                $sql_all_groups = "SELECT rowid FROM ".MAIN_DB_PREFIX."usergroup";
+                $sql_all_groups .= " WHERE entity IN (".getEntity('usergroup').")";
+                $resql_all = $this->db->query($sql_all_groups);
+                if ($resql_all) {
+                    while ($obj_grp = $this->db->fetch_object($resql_all)) {
+                        $groupids[] = (int) $obj_grp->rowid;
+                    }
+                    $this->db->free($resql_all);
+                }
+            }
+            if (empty($groupids)) {
+                return $templates;
+            }
+        }
+
+        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_usergroup,";
         $sql .= " t.filename, t.filepath, t.filetype, t.filesize, t.mime_type,";
         $sql .= " t.active, t.date_creation, ug.nom as usergroup_name";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
@@ -324,7 +367,7 @@ class MultiDocTemplate extends CommonObject
         $sql .= " WHERE t.entity IN (".getEntity($this->element).")";
         $sql .= " AND t.fk_usergroup IN (".implode(',', $groupids).")";
         $sql .= " AND t.active = 1";
-        $sql .= " ORDER BY ug.nom ASC, t.label ASC";
+        $sql .= " ORDER BY t.tag ASC, ug.nom ASC, t.label ASC";
 
         dol_syslog(get_class($this)."::fetchAllForUser", LOG_DEBUG);
         $resql = $this->db->query($sql);
@@ -336,6 +379,7 @@ class MultiDocTemplate extends CommonObject
                 $template->ref = $obj->ref;
                 $template->label = $obj->label;
                 $template->description = $obj->description;
+                $template->tag = $obj->tag;
                 $template->fk_usergroup = $obj->fk_usergroup;
                 $template->filename = $obj->filename;
                 $template->filepath = $obj->filepath;

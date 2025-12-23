@@ -9,6 +9,7 @@ CREATE TABLE llx_multidoctemplate_template (
     ref             VARCHAR(128) NOT NULL,
     label           VARCHAR(255) NOT NULL,
     description     TEXT,
+    tag             VARCHAR(128) NOT NULL DEFAULT '',
     fk_usergroup    INTEGER NOT NULL,
     filename        VARCHAR(255) NOT NULL,
     filepath        VARCHAR(512) NOT NULL,
