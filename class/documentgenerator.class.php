@@ -38,9 +38,10 @@ class MultiDocGenerator
      * @param string $object_type Object type (thirdparty or contact)
      * @param User $user User generating the document
      * @param string $tag_filter Tag/category filter for folder organization
+     * @param string $output_format Output format (empty = same as template, 'pdf' = convert to PDF)
      * @return int >0 if OK, <0 if KO
      */
-    public function generate($template, $object, $object_type, $user, $tag_filter = '')
+    public function generate($template, $object, $object_type, $user, $tag_filter = '', $output_format = '')
     {
         global $conf, $langs, $mysoc;
 
@@ -94,6 +95,26 @@ class MultiDocGenerator
             return $result;
         }
 
+        // Convert to PDF if requested and source is DOCX/ODT
+        $final_filepath = $output_filepath;
+        $final_filename = $output_filename;
+        $final_ext = $ext;
+
+        if (strtolower($output_format) == 'pdf' && in_array(strtolower($ext), array('docx', 'odt'))) {
+            $pdf_result = $this->convertToPDF($output_filepath);
+            if ($pdf_result !== false) {
+                // Delete original file
+                dol_delete_file($output_filepath);
+                $final_filepath = $pdf_result;
+                $final_filename = pathinfo($output_filename, PATHINFO_FILENAME).'.pdf';
+                $final_ext = 'pdf';
+            } else {
+                // PDF conversion failed, keep original
+                $this->error = $langs->trans('PDFConversionFailed').': '.$this->error;
+                // Don't return error, just keep the original format
+            }
+        }
+
         // Create archive record
         require_once __DIR__.'/archive.class.php';
         $archive = new MultiDocArchive($this->db);
@@ -101,17 +122,17 @@ class MultiDocGenerator
         $archive->fk_template = $template->id;
         $archive->object_type = $object_type;
         $archive->object_id = $object->id;
-        $archive->filename = $output_filename;
-        $archive->filepath = $output_filepath;
-        $archive->filetype = strtolower($ext);
-        $archive->filesize = filesize($output_filepath);
+        $archive->filename = $final_filename;
+        $archive->filepath = $final_filepath;
+        $archive->filetype = strtolower($final_ext);
+        $archive->filesize = filesize($final_filepath);
         $archive->tag_filter = $folder_tag;
 
         $result = $archive->create($user);
 
         if ($result < 0) {
             // Delete generated file if DB insert failed
-            dol_delete_file($output_filepath);
+            dol_delete_file($final_filepath);
             $this->error = $archive->error;
             return -3;
         }
@@ -732,5 +753,133 @@ class MultiDocGenerator
         }
 
         return $subs;
+    }
+
+    /**
+     * Convert document to PDF using LibreOffice
+     *
+     * @param string $input_file Path to input file (DOCX, ODT)
+     * @return string|false Path to PDF file on success, false on failure
+     */
+    public function convertToPDF($input_file)
+    {
+        global $conf, $langs;
+
+        if (!file_exists($input_file)) {
+            $this->error = 'Input file not found';
+            return false;
+        }
+
+        $output_dir = dirname($input_file);
+        $input_basename = pathinfo($input_file, PATHINFO_FILENAME);
+        $expected_pdf = $output_dir.'/'.$input_basename.'.pdf';
+
+        // Try to find LibreOffice
+        $libreoffice_paths = array(
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/local/bin/libreoffice',
+            '/usr/local/bin/soffice',
+            '/opt/libreoffice/program/soffice',
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice', // macOS
+            'C:\\Program Files\\LibreOffice\\program\\soffice.exe', // Windows
+            'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe'
+        );
+
+        $libreoffice = '';
+        foreach ($libreoffice_paths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                $libreoffice = $path;
+                break;
+            }
+        }
+
+        // Also check via 'which' command on Unix
+        if (empty($libreoffice)) {
+            $which_result = @exec('which libreoffice 2>/dev/null');
+            if (!empty($which_result) && file_exists($which_result)) {
+                $libreoffice = $which_result;
+            }
+        }
+        if (empty($libreoffice)) {
+            $which_result = @exec('which soffice 2>/dev/null');
+            if (!empty($which_result) && file_exists($which_result)) {
+                $libreoffice = $which_result;
+            }
+        }
+
+        if (empty($libreoffice)) {
+            $this->error = $langs->trans('LibreOfficeNotFound');
+            return false;
+        }
+
+        // Create unique temp user profile directory to avoid conflicts
+        $user_profile = sys_get_temp_dir().'/libreoffice_profile_'.uniqid();
+        if (!is_dir($user_profile)) {
+            mkdir($user_profile, 0755, true);
+        }
+
+        // Build the LibreOffice command
+        // --headless: No GUI
+        // --convert-to pdf: Convert to PDF format
+        // --outdir: Output directory
+        // -env:UserInstallation: Use unique profile to avoid locking issues
+        $cmd = escapeshellarg($libreoffice)
+            . ' --headless'
+            . ' --convert-to pdf'
+            . ' --outdir '.escapeshellarg($output_dir)
+            . ' -env:UserInstallation=file://'.escapeshellarg($user_profile)
+            . ' '.escapeshellarg($input_file)
+            . ' 2>&1';
+
+        // Execute conversion
+        $output = array();
+        $return_var = 0;
+        exec($cmd, $output, $return_var);
+
+        // Clean up temp profile
+        @rmdir($user_profile);
+
+        // Check if PDF was created
+        if (file_exists($expected_pdf)) {
+            return $expected_pdf;
+        }
+
+        // Conversion failed
+        $this->error = 'LibreOffice conversion failed: '.implode("\n", $output);
+        return false;
+    }
+
+    /**
+     * Check if LibreOffice is available on the system
+     *
+     * @return bool True if LibreOffice is available
+     */
+    public static function isLibreOfficeAvailable()
+    {
+        $paths = array(
+            '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/local/bin/libreoffice',
+            '/usr/local/bin/soffice'
+        );
+
+        foreach ($paths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return true;
+            }
+        }
+
+        // Check via which
+        $result = @exec('which libreoffice 2>/dev/null');
+        if (!empty($result)) {
+            return true;
+        }
+        $result = @exec('which soffice 2>/dev/null');
+        if (!empty($result)) {
+            return true;
+        }
+
+        return false;
     }
 }

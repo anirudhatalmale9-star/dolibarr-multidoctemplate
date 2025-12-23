@@ -124,6 +124,7 @@ if ($object_type == 'thirdparty') {
 // Generate archive from template
 if ($action == 'generate' && $template_id > 0 && $user->hasRight('multidoctemplate', 'archive_creer')) {
     $template->fetch($template_id);
+    $output_format = GETPOST('output_format', 'alpha');
 
     if ($template->id > 0) {
         // Determine tag filter from object's categories
@@ -132,8 +133,8 @@ if ($action == 'generate' && $template_id > 0 && $user->hasRight('multidoctempla
             $tag_filter = $object_categories[$category_id];
         }
 
-        // Generate document
-        $result = $generator->generate($template, $object, $object_type, $user, $tag_filter);
+        // Generate document (with optional PDF conversion)
+        $result = $generator->generate($template, $object, $object_type, $user, $tag_filter, $output_format);
 
         if ($result > 0) {
             setEventMessages($langs->trans('ArchiveGeneratedSuccess'), null, 'mesgs');
@@ -256,8 +257,8 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
             // Folder content (templates list)
             print '<div id="'.$tag_id.'_content" class="folder-content" style="margin-left: 25px; display: block;">';
             foreach ($tag_templates as $tpl) {
-                print '<div class="template-item" data-label="'.dol_escape_htmltag(strtolower($tpl->label)).'" style="padding: 5px; border-bottom: 1px solid #eee;">';
-                print '<a href="javascript:void(0)" onclick="selectTemplate('.$tpl->id.', \''.dol_escape_js($tpl->label).'\')" style="text-decoration: none;">';
+                print '<div class="template-item" data-label="'.dol_escape_htmltag(strtolower($tpl->label)).'" data-filetype="'.dol_escape_htmltag(strtolower($tpl->filetype)).'" style="padding: 5px; border-bottom: 1px solid #eee;">';
+                print '<a href="javascript:void(0)" onclick="selectTemplate('.$tpl->id.', \''.dol_escape_js($tpl->label).'\', \''.dol_escape_js(strtolower($tpl->filetype)).'\')" style="text-decoration: none;">';
                 print img_picto('', 'file', 'style="vertical-align: middle;"').' ';
                 print '<span class="template-label">'.dol_escape_htmltag($tpl->label).'</span>';
                 print ' <span class="opacitymedium">('.strtoupper($tpl->filetype).')</span>';
@@ -274,9 +275,25 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
 
         print '</div>'; // template_explorer
 
-        // Selected template display and generate button
+        // Selected template display, PDF option, and generate button
         print '<div class="margintoponlyonly" style="margin-top: 15px;">';
         print '<strong>'.$langs->trans('Selected').':</strong> <span id="selected_template_name" class="opacitymedium">'.$langs->trans('None').'</span>';
+        print '<br><br>';
+
+        // PDF output option (only shown for DOCX/ODT templates)
+        $libreoffice_available = MultiDocGenerator::isLibreOfficeAvailable();
+        print '<span id="pdf_option_container" style="display: none;">';
+        print '<input type="checkbox" name="output_format" id="output_format_pdf" value="pdf"';
+        if (!$libreoffice_available) {
+            print ' disabled';
+        }
+        print '> ';
+        print '<label for="output_format_pdf">'.$langs->trans('OutputAsPDF').'</label>';
+        if (!$libreoffice_available) {
+            print ' <span class="opacitymedium">('.$langs->trans('LibreOfficeNotInstalled').')</span>';
+        }
+        print '</span>';
+
         print ' &nbsp; ';
         print '<input type="submit" class="button button-primary" value="'.$langs->trans('Generate').'" id="generate_btn" disabled>';
         print '</div>';
@@ -314,11 +331,21 @@ function collapseAllFolders() {
     icons.forEach(function(el) { el.innerHTML = rightArrowHtml; });
 }
 
-function selectTemplate(id, label) {
+function selectTemplate(id, label, filetype) {
     document.getElementById("selected_template_id").value = id;
     document.getElementById("selected_template_name").innerHTML = label;
     document.getElementById("selected_template_name").className = "";
     document.getElementById("generate_btn").disabled = false;
+
+    // Show PDF option only for DOCX and ODT files
+    var pdfContainer = document.getElementById("pdf_option_container");
+    if (filetype === "docx" || filetype === "odt") {
+        pdfContainer.style.display = "inline";
+    } else {
+        pdfContainer.style.display = "none";
+        document.getElementById("output_format_pdf").checked = false;
+    }
+
     // Highlight selected
     var items = document.querySelectorAll(".template-item");
     items.forEach(function(el) { el.style.background = ""; });

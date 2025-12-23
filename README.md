@@ -13,16 +13,31 @@ Group-based document templates and archive generation module for Dolibarr 23.0+
 
 ## Supported Formats
 
-| Format | Variable Substitution | Notes |
-|--------|----------------------|-------|
-| ODT | Yes | LibreOffice Writer - Full support |
-| ODS | Yes | LibreOffice Calc - Full support |
-| DOCX | Yes | Microsoft Word - Full support |
-| XLSX | Yes | Microsoft Excel - Full support |
-| PDF | No | Copy only |
-| DOC | No | Copy only |
-| XLS | No | Copy only |
-| RTF | No | Copy only |
+| Format | Variable Substitution | PDF Output | Notes |
+|--------|----------------------|------------|-------|
+| ODT | Yes | Yes | LibreOffice Writer - Full support |
+| ODS | Yes | No | LibreOffice Calc - Full support |
+| DOCX | Yes | Yes | Microsoft Word - Full support |
+| XLSX | Yes | No | Microsoft Excel - Full support |
+| PDF | No | - | Copy only |
+| DOC | No | No | Copy only |
+| XLS | No | No | Copy only |
+| RTF | No | No | Copy only |
+
+## PDF Output (DOCX/ODT to PDF)
+
+When generating from a DOCX or ODT template, you can optionally convert the output to PDF.
+
+### Requirements
+- LibreOffice must be installed on the server
+- On Ubuntu/Debian: `sudo apt-get install libreoffice-common`
+- On CentOS/RHEL: `sudo yum install libreoffice`
+
+### How it works
+1. Select a DOCX or ODT template
+2. Check "Output as PDF" option
+3. Click Generate
+4. The document is first processed with variable substitution, then converted to PDF using LibreOffice headless mode
 
 ## Substitution Variables
 

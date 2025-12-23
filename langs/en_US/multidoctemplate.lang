@@ -56,6 +56,19 @@ Disabled=Disabled
 ErrorTemplateFileNotFound=Template file not found
 ErrorCanNotCreateDir=Cannot create directory
 ErrorFileUploadFailed=File upload failed
+PDFConversionFailed=PDF conversion failed
+LibreOfficeNotFound=LibreOffice not found on server
+
+# PDF Conversion
+OutputAsPDF=Output as PDF
+LibreOfficeNotInstalled=LibreOffice not installed
 
 # Other
 FileNotFound=File not found
+Files=files
+ExpandAll=Expand All
+CollapseAll=Collapse All
+Uncategorized=Uncategorized
+NoTag=No Tag
+Selected=Selected
+None=None
