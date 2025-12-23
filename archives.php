@@ -204,7 +204,7 @@ if ($action == 'upload' && $user->hasRight('multidoctemplate', 'archive_creer'))
         if (dol_move_uploaded_file($_FILES['archivefile']['tmp_name'], $filepath, 1, 0, $_FILES['archivefile']['error']) > 0) {
             // Create archive record
             $archive->ref = MultiDocArchive::generateRef($object_type, $object->id);
-            $archive->fk_template = 0; // No template, direct upload
+            $archive->fk_template = null; // No template, direct upload
             $archive->fk_category = $upload_category_id;  // Store category ID
             $archive->object_type = $object_type;
             $archive->object_id = $object->id;

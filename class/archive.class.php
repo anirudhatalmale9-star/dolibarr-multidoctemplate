@@ -67,7 +67,7 @@ class MultiDocArchive extends CommonObject
             $this->error = 'ErrorRefRequired';
             return -1;
         }
-        // fk_template can be 0 for direct uploads
+        // fk_template can be NULL for direct uploads
 
         $this->db->begin();
 
@@ -76,7 +76,7 @@ class MultiDocArchive extends CommonObject
         $sql .= "fk_category, tag_filter, date_generation, fk_user_creat, entity";
         $sql .= ") VALUES (";
         $sql .= "'".$this->db->escape($this->ref)."',";
-        $sql .= (int) $this->fk_template.",";
+        $sql .= (!empty($this->fk_template) ? (int) $this->fk_template : "NULL").",";
         $sql .= "'".$this->db->escape($this->object_type)."',";
         $sql .= (int) $this->object_id.",";
         $sql .= "'".$this->db->escape($this->filename)."',";

@@ -7,7 +7,7 @@
 CREATE TABLE llx_multidoctemplate_archive (
     rowid               INTEGER AUTO_INCREMENT PRIMARY KEY,
     ref                 VARCHAR(128) NOT NULL,
-    fk_template         INTEGER NOT NULL,
+    fk_template         INTEGER DEFAULT NULL,
     object_type         VARCHAR(64) NOT NULL,
     object_id           INTEGER NOT NULL,
     filename            VARCHAR(255) NOT NULL,
