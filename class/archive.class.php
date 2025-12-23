@@ -29,6 +29,7 @@ class MultiDocArchive extends CommonObject
     public $filetype;
     public $filesize;
     public $fk_category;
+    public $category_label;  // From join with llx_categorie
     public $tag_filter;
     public $date_generation;
     public $fk_user_creat;
@@ -224,16 +225,19 @@ class MultiDocArchive extends CommonObject
         $sql = "SELECT a.rowid, a.ref, a.fk_template, a.object_type, a.object_id,";
         $sql .= " a.filename, a.filepath, a.filetype, a.filesize,";
         $sql .= " a.fk_category, a.tag_filter, a.date_generation, a.fk_user_creat,";
-        $sql .= " t.label as template_label, COALESCE(a.tag_filter, t.tag) as template_tag, t.fk_usergroup";
+        $sql .= " t.label as template_label, t.tag as template_tag, t.fk_usergroup,";
+        $sql .= " c.label as category_label,";
+        $sql .= " COALESCE(c.label, a.tag_filter, t.tag) as folder_label";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as a";
         $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."multidoctemplate_template as t ON t.rowid = a.fk_template";
+        $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."categorie as c ON c.rowid = a.fk_category";
         $sql .= " WHERE a.entity IN (".getEntity($this->element).")";
         $sql .= " AND a.object_type = '".$this->db->escape($object_type)."'";
         $sql .= " AND a.object_id = ".(int) $object_id;
         if ($fk_category > 0) {
             $sql .= " AND a.fk_category = ".(int) $fk_category;
         }
-        $sql .= " ORDER BY template_tag ASC, a.date_generation DESC";
+        $sql .= " ORDER BY folder_label ASC, a.date_generation DESC";
 
         dol_syslog(get_class($this)."::fetchAllByObject", LOG_DEBUG);
         $resql = $this->db->query($sql);
@@ -251,11 +255,13 @@ class MultiDocArchive extends CommonObject
                 $archive->filetype = $obj->filetype;
                 $archive->filesize = $obj->filesize;
                 $archive->fk_category = $obj->fk_category;
+                $archive->category_label = $obj->category_label;
                 $archive->tag_filter = $obj->tag_filter;
                 $archive->date_generation = $this->db->jdate($obj->date_generation);
                 $archive->fk_user_creat = $obj->fk_user_creat;
                 $archive->template_label = $obj->template_label;
                 $archive->template_tag = $obj->template_tag;
+                $archive->folder_label = $obj->folder_label;  // COALESCE(category_label, tag_filter, template_tag)
                 $archive->fk_usergroup = $obj->fk_usergroup;
                 $archives[$obj->rowid] = $archive;
             }

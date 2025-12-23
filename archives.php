@@ -521,16 +521,17 @@ print load_fiche_titre($langs->trans('ArchivesList'), '', '');
 $archives = $archive->fetchAllByObject($object_type, $object->id);
 
 if (is_array($archives) && count($archives) > 0) {
-    // Group archives by tag
-    $archives_by_tag = array();
+    // Group archives by category (priority: category_label > tag_filter > template_tag)
+    $archives_by_category = array();
     foreach ($archives as $arch) {
-        $tag_label = !empty($arch->template_tag) ? $arch->template_tag : $langs->trans('NoTag');
-        if (!isset($archives_by_tag[$tag_label])) {
-            $archives_by_tag[$tag_label] = array();
+        // Use folder_label from SQL COALESCE, fallback to translation if empty
+        $folder_label = !empty($arch->folder_label) ? $arch->folder_label : $langs->trans('Uncategorized');
+        if (!isset($archives_by_category[$folder_label])) {
+            $archives_by_category[$folder_label] = array();
         }
-        $archives_by_tag[$tag_label][] = $arch;
+        $archives_by_category[$folder_label][] = $arch;
     }
-    ksort($archives_by_tag);
+    ksort($archives_by_category);
 
     // Search and controls
     print '<div class="marginbottomonly">';
@@ -542,15 +543,15 @@ if (is_array($archives) && count($archives) > 0) {
     // File explorer style container
     print '<div id="archive_explorer" class="div-table-responsive" style="max-height: 500px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background: #fafafa;">';
 
-    foreach ($archives_by_tag as $tag_label => $tag_archives) {
-        $tag_id = 'arch_tag_'.md5($tag_label);
-        $count = count($tag_archives);
+    foreach ($archives_by_category as $category_label => $category_archives) {
+        $tag_id = 'arch_cat_'.md5($category_label);
+        $count = count($category_archives);
 
-        // Folder header (collapsible) - Dolibarr style
-        print '<div class="archive-folder" data-tag="'.dol_escape_htmltag(strtolower($tag_label)).'">';
+        // Folder header (collapsible) - Dolibarr style with category icon
+        print '<div class="archive-folder" data-tag="'.dol_escape_htmltag(strtolower($category_label)).'">';
         print '<div class="folder-header" onclick="toggleArchiveFolder(\''.$tag_id.'\')" style="cursor: pointer; padding: 8px; background: #e8e8e8; margin-bottom: 2px; border-radius: 3px;">';
         print '<span id="'.$tag_id.'_icon">'.img_picto('', '1downarrow', 'class="imgdownforline"').'</span> ';
-        print '<strong>'.img_picto('', 'folder', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($tag_label).'</strong>';
+        print '<strong>'.img_picto('', 'category', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($category_label).'</strong>';
         print ' <span class="opacitymedium">('.$count.' '.$langs->trans('Files').')</span>';
         print '</div>';
 
@@ -566,7 +567,7 @@ if (is_array($archives) && count($archives) > 0) {
         print '<th class="center">'.$langs->trans('Actions').'</th>';
         print '</tr>';
 
-        foreach ($tag_archives as $arch) {
+        foreach ($category_archives as $arch) {
             // For direct uploads (no template), show filename as label
             $label_display = !empty($arch->template_label) ? $arch->template_label : pathinfo($arch->filename, PATHINFO_FILENAME);
             $is_direct_upload = empty($arch->fk_template) || $arch->fk_template == 0;
