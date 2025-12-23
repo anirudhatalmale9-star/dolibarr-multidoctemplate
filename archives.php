@@ -48,6 +48,7 @@ require_once DOL_DOCUMENT_ROOT.'/contact/class/contact.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/contact.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once __DIR__.'/class/template.class.php';
 require_once __DIR__.'/class/archive.class.php';
@@ -169,16 +170,24 @@ if ($action == 'confirm_delete' && $confirm == 'yes' && $user->hasRight('multido
 // Upload file directly to archives
 if ($action == 'upload' && $user->hasRight('multidoctemplate', 'archive_creer')) {
     if (!empty($_FILES['archivefile']['name'])) {
-        $upload_tag = GETPOST('upload_tag', 'alphanohtml');
+        $upload_category_id = GETPOST('upload_category', 'int');
         $upload_label = GETPOST('upload_label', 'alphanohtml');
         $filename = $_FILES['archivefile']['name'];
+
+        // Get category label for folder organization
+        $upload_folder = '';
+        if ($upload_category_id > 0) {
+            $cat = new Categorie($db);
+            $cat->fetch($upload_category_id);
+            $upload_folder = $cat->label;
+        }
 
         // Sanitize filename
         $sanitized_filename = dol_sanitizeFileName($filename);
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         // Create archive directory
-        $archive_dir = MultiDocArchive::getArchiveDir($object_type, $object->id, $upload_tag);
+        $archive_dir = MultiDocArchive::getArchiveDir($object_type, $object->id, $upload_folder);
         if (!is_dir($archive_dir)) {
             if (dol_mkdir($archive_dir) < 0) {
                 setEventMessages($langs->trans('ErrorCanNotCreateDir', $archive_dir), null, 'errors');
@@ -196,13 +205,14 @@ if ($action == 'upload' && $user->hasRight('multidoctemplate', 'archive_creer'))
             // Create archive record
             $archive->ref = MultiDocArchive::generateRef($object_type, $object->id);
             $archive->fk_template = 0; // No template, direct upload
+            $archive->fk_category = $upload_category_id;  // Store category ID
             $archive->object_type = $object_type;
             $archive->object_id = $object->id;
             $archive->filename = $output_filename;
             $archive->filepath = $filepath;
             $archive->filetype = $ext;
             $archive->filesize = filesize($filepath);
-            $archive->tag_filter = $upload_tag;
+            $archive->tag_filter = $upload_folder;  // Store category label for backwards compatibility
             $archive->label = $upload_label ?: pathinfo($filename, PATHINFO_FILENAME);
 
             $result = $archive->create($user);
@@ -275,10 +285,17 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
     $templates = $template->fetchAllForUser($user);
 
     if (is_array($templates) && count($templates) > 0) {
-        // Group templates by tag
+        // Group templates by category (priority) or tag (fallback)
         $templates_by_tag = array();
         foreach ($templates as $tpl) {
-            $tag_label = !empty($tpl->tag) ? $tpl->tag : $langs->trans('NoTag');
+            // Use category_label if available, otherwise fall back to tag
+            if (!empty($tpl->category_label)) {
+                $tag_label = $tpl->category_label;
+            } elseif (!empty($tpl->tag)) {
+                $tag_label = $tpl->tag;
+            } else {
+                $tag_label = $langs->trans('NoTag');
+            }
             if (!isset($templates_by_tag[$tag_label])) {
                 $templates_by_tag[$tag_label] = array();
             }
@@ -305,11 +322,11 @@ if ($user->hasRight('multidoctemplate', 'archive_creer')) {
             $tag_id = 'tag_'.md5($tag_label);
             $count = count($tag_templates);
 
-            // Folder header (collapsible) - Dolibarr style
+            // Folder header (collapsible) - Dolibarr style with category icon
             print '<div class="template-folder" data-tag="'.dol_escape_htmltag(strtolower($tag_label)).'">';
             print '<div class="folder-header" onclick="toggleFolder(\''.$tag_id.'\')" style="cursor: pointer; padding: 8px; background: #e8e8e8; margin-bottom: 2px; border-radius: 3px;">';
             print '<span id="'.$tag_id.'_icon">'.img_picto('', '1downarrow', 'class="imgdownforline"').'</span> ';
-            print '<strong>'.img_picto('', 'folder', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($tag_label).'</strong>';
+            print '<strong>'.img_picto('', 'category', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($tag_label).'</strong>';
             print ' <span class="opacitymedium">('.$count.')</span>';
             print '</div>';
 
@@ -458,27 +475,20 @@ function filterTemplates() {
     print '<div class="tabsAction">';
     print load_fiche_titre($langs->trans('UploadFileDirectly'), '', '');
 
+    $form = new Form($db);
+
     print '<form enctype="multipart/form-data" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&object_type='.$object_type.'" method="POST">';
     print '<input type="hidden" name="token" value="'.newToken().'">';
     print '<input type="hidden" name="action" value="upload">';
 
     print '<table class="noborder centpercent">';
 
-    // Tag (folder) - dropdown with existing tags from templates
+    // Category - native Dolibarr category selector
     print '<tr class="oddeven">';
-    print '<td class="titlefield">'.$langs->trans('Tag').' ('.$langs->trans('Folder').') <span class="star">*</span></td>';
+    print '<td class="titlefield">'.$langs->trans('Category').' <span class="star">*</span></td>';
     print '<td>';
-    print '<select name="upload_tag" class="flat minwidth200" required>';
-    print '<option value="">'.$langs->trans('SelectTag').'</option>';
-    // Use tags from templates (already grouped in $templates_by_tag)
-    if (isset($templates_by_tag) && is_array($templates_by_tag)) {
-        foreach (array_keys($templates_by_tag) as $tag_name) {
-            if ($tag_name != $langs->trans('NoTag')) {
-                print '<option value="'.dol_escape_htmltag($tag_name).'">'.dol_escape_htmltag($tag_name).'</option>';
-            }
-        }
-    }
-    print '</select>';
+    print $form->select_all_categories('template', '', 'upload_category', 64, 0, 0, 0, 'minwidth200');
+    print ' <a href="'.DOL_URL_ROOT.'/categories/index.php?type=template" target="_blank" class="classfortooltip" title="'.$langs->trans('ManageCategories').'">'.img_picto('', 'category').'</a>';
     print '</td>';
     print '</tr>';
 

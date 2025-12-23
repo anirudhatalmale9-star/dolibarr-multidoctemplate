@@ -24,6 +24,8 @@ class MultiDocTemplate extends CommonObject
     public $label;
     public $description;
     public $tag;
+    public $fk_category;  // Link to Dolibarr native category (llx_categorie)
+    public $category_label;  // Category label (from join)
     public $fk_usergroup;
     public $filename;
     public $filepath;
@@ -91,13 +93,14 @@ class MultiDocTemplate extends CommonObject
         $this->db->begin();
 
         $sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
-        $sql .= "ref, label, description, tag, fk_usergroup, filename, filepath, filetype, filesize, mime_type,";
+        $sql .= "ref, label, description, tag, fk_category, fk_usergroup, filename, filepath, filetype, filesize, mime_type,";
         $sql .= "active, date_creation, fk_user_creat, entity";
         $sql .= ") VALUES (";
         $sql .= "'".$this->db->escape($this->ref)."',";
         $sql .= "'".$this->db->escape($this->label)."',";
         $sql .= "'".$this->db->escape($this->description)."',";
         $sql .= "'".$this->db->escape($this->tag)."',";
+        $sql .= ($this->fk_category > 0 ? (int) $this->fk_category : "NULL").",";
         $sql .= $this->fk_usergroup.",";
         $sql .= "'".$this->db->escape($this->filename)."',";
         $sql .= "'".$this->db->escape($this->filepath)."',";
@@ -149,11 +152,13 @@ class MultiDocTemplate extends CommonObject
     {
         global $conf;
 
-        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_usergroup,";
+        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_category, t.fk_usergroup,";
         $sql .= " t.filename, t.filepath, t.filetype, t.filesize, t.mime_type,";
         $sql .= " t.active, t.date_creation, t.date_modification,";
-        $sql .= " t.fk_user_creat, t.fk_user_modif, t.entity";
+        $sql .= " t.fk_user_creat, t.fk_user_modif, t.entity,";
+        $sql .= " c.label as category_label";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+        $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."categorie as c ON c.rowid = t.fk_category";
         $sql .= " WHERE t.entity IN (".getEntity($this->element).")";
         if ($id) {
             $sql .= " AND t.rowid = ".(int) $id;
@@ -173,6 +178,8 @@ class MultiDocTemplate extends CommonObject
                 $this->label = $obj->label;
                 $this->description = $obj->description;
                 $this->tag = $obj->tag;
+                $this->fk_category = $obj->fk_category;
+                $this->category_label = $obj->category_label;
                 $this->fk_usergroup = $obj->fk_usergroup;
                 $this->filename = $obj->filename;
                 $this->filepath = $obj->filepath;
@@ -272,16 +279,17 @@ class MultiDocTemplate extends CommonObject
 
         $templates = array();
 
-        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_usergroup,";
+        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_category, t.fk_usergroup,";
         $sql .= " t.filename, t.filepath, t.filetype, t.filesize, t.mime_type,";
-        $sql .= " t.active, t.date_creation";
+        $sql .= " t.active, t.date_creation, c.label as category_label";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+        $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."categorie as c ON c.rowid = t.fk_category";
         $sql .= " WHERE t.entity IN (".getEntity($this->element).")";
         $sql .= " AND t.fk_usergroup = ".(int) $fk_usergroup;
         if ($active >= 0) {
             $sql .= " AND t.active = ".(int) $active;
         }
-        $sql .= " ORDER BY t.tag ASC, t.label ASC";
+        $sql .= " ORDER BY c.label ASC, t.tag ASC, t.label ASC";
 
         dol_syslog(get_class($this)."::fetchAllByUserGroup", LOG_DEBUG);
         $resql = $this->db->query($sql);
@@ -294,6 +302,8 @@ class MultiDocTemplate extends CommonObject
                 $template->label = $obj->label;
                 $template->description = $obj->description;
                 $template->tag = $obj->tag;
+                $template->fk_category = $obj->fk_category;
+                $template->category_label = $obj->category_label;
                 $template->fk_usergroup = $obj->fk_usergroup;
                 $template->filename = $obj->filename;
                 $template->filepath = $obj->filepath;
@@ -359,15 +369,16 @@ class MultiDocTemplate extends CommonObject
             }
         }
 
-        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_usergroup,";
+        $sql = "SELECT t.rowid, t.ref, t.label, t.description, t.tag, t.fk_category, t.fk_usergroup,";
         $sql .= " t.filename, t.filepath, t.filetype, t.filesize, t.mime_type,";
-        $sql .= " t.active, t.date_creation, ug.nom as usergroup_name";
+        $sql .= " t.active, t.date_creation, ug.nom as usergroup_name, c.label as category_label";
         $sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
         $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."usergroup as ug ON ug.rowid = t.fk_usergroup";
+        $sql .= " LEFT JOIN ".MAIN_DB_PREFIX."categorie as c ON c.rowid = t.fk_category";
         $sql .= " WHERE t.entity IN (".getEntity($this->element).")";
         $sql .= " AND t.fk_usergroup IN (".implode(',', $groupids).")";
         $sql .= " AND t.active = 1";
-        $sql .= " ORDER BY t.tag ASC, ug.nom ASC, t.label ASC";
+        $sql .= " ORDER BY c.label ASC, t.tag ASC, ug.nom ASC, t.label ASC";
 
         dol_syslog(get_class($this)."::fetchAllForUser", LOG_DEBUG);
         $resql = $this->db->query($sql);
@@ -380,6 +391,8 @@ class MultiDocTemplate extends CommonObject
                 $template->label = $obj->label;
                 $template->description = $obj->description;
                 $template->tag = $obj->tag;
+                $template->fk_category = $obj->fk_category;
+                $template->category_label = $obj->category_label;
                 $template->fk_usergroup = $obj->fk_usergroup;
                 $template->filename = $obj->filename;
                 $template->filepath = $obj->filepath;
@@ -397,6 +410,16 @@ class MultiDocTemplate extends CommonObject
             $this->error = $this->db->lasterror();
             return -1;
         }
+    }
+
+    /**
+     * Get the category type constant for templates
+     *
+     * @return string Category type
+     */
+    public static function getCategoryType()
+    {
+        return 'template';  // Matches CATEGORIE_TYPE_TEMPLATE constant
     }
 
     /**

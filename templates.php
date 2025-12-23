@@ -47,6 +47,8 @@ require_once DOL_DOCUMENT_ROOT.'/user/class/usergroup.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/usergroups.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
+require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once __DIR__.'/class/template.class.php';
 
 // Load translations
@@ -110,7 +112,8 @@ if ($action == 'upload' && $user->hasRight('multidoctemplate', 'template_creer')
                 $template->ref = 'TPL-'.$object->id.'-'.date('YmdHis');
                 $template->label = GETPOST('template_label', 'alphanohtml') ?: pathinfo($filename, PATHINFO_FILENAME);
                 $template->description = GETPOST('template_description', 'restricthtml');
-                $template->tag = GETPOST('template_tag', 'alphanohtml');
+                $template->tag = GETPOST('template_tag', 'alphanohtml');  // Keep for backwards compatibility
+                $template->fk_category = GETPOST('template_category', 'int');  // Native Dolibarr category
                 $template->fk_usergroup = $object->id;
                 $template->filename = $sanitized_filename;
                 $template->filepath = $filepath;
@@ -194,6 +197,8 @@ if ($action == 'delete') {
 
 // Upload form
 if ($user->hasRight('multidoctemplate', 'template_creer')) {
+    $form = new Form($db);
+
     print '<div class="tabsAction">';
     print '<form enctype="multipart/form-data" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'" method="POST">';
     print '<input type="hidden" name="token" value="'.newToken().'">';
@@ -205,10 +210,20 @@ if ($user->hasRight('multidoctemplate', 'template_creer')) {
     print '<th colspan="2">'.$langs->trans('UploadNewTemplate').'</th>';
     print '</tr>';
 
-    // Tag (folder)
+    // Category (native Dolibarr category)
     print '<tr class="oddeven">';
-    print '<td class="titlefield">'.$langs->trans('Tag').' <span class="star">*</span></td>';
-    print '<td><input type="text" name="template_tag" size="40" class="flat" placeholder="e.g. course, exam, credential" required></td>';
+    print '<td class="titlefield">'.$langs->trans('Category').' <span class="star">*</span></td>';
+    print '<td>';
+    // Use Dolibarr's native category selector for type 'template'
+    print $form->select_all_categories('template', '', 'template_category', 64, 0, 0, 0, 'minwidth300');
+    print ' <a href="'.DOL_URL_ROOT.'/categories/index.php?type=template" target="_blank" class="classfortooltip" title="'.$langs->trans('ManageCategories').'">'.img_picto('', 'category').'</a>';
+    print '</td>';
+    print '</tr>';
+
+    // Tag (folder) - keep for backwards compatibility
+    print '<tr class="oddeven">';
+    print '<td class="titlefield">'.$langs->trans('Tag').' ('.$langs->trans('Optional').')</td>';
+    print '<td><input type="text" name="template_tag" size="40" class="flat" placeholder="'.$langs->trans('LegacyTagField').'"></td>';
     print '</tr>';
 
     // Label
@@ -261,45 +276,52 @@ print '</div>';
 
 $templates = $template->fetchAllByUserGroup($object->id, -1);
 
-// Group templates by tag
-$templates_by_tag = array();
+// Group templates by category (priority) or tag (fallback)
+$templates_by_category = array();
 if (is_array($templates) && count($templates) > 0) {
     foreach ($templates as $tpl) {
-        $tag_key = !empty($tpl->tag) ? $tpl->tag : $langs->trans('Uncategorized');
-        if (!isset($templates_by_tag[$tag_key])) {
-            $templates_by_tag[$tag_key] = array();
+        // Use category_label if available, otherwise fall back to tag, then Uncategorized
+        if (!empty($tpl->category_label)) {
+            $category_key = $tpl->category_label;
+        } elseif (!empty($tpl->tag)) {
+            $category_key = $tpl->tag;
+        } else {
+            $category_key = $langs->trans('Uncategorized');
         }
-        $templates_by_tag[$tag_key][] = $tpl;
+        if (!isset($templates_by_category[$category_key])) {
+            $templates_by_category[$category_key] = array();
+        }
+        $templates_by_category[$category_key][] = $tpl;
     }
-    // Sort tags
+    // Sort categories
     if ($sortfield == 'tag') {
         if ($sortorder == 'ASC') {
-            ksort($templates_by_tag);
+            ksort($templates_by_category);
         } else {
-            krsort($templates_by_tag);
+            krsort($templates_by_category);
         }
     }
 }
 
 print '<div class="div-table-responsive">';
 
-if (count($templates_by_tag) > 0) {
-    $tag_index = 0;
-    foreach ($templates_by_tag as $tag_label => $tag_templates) {
-        $tag_id = 'tag_'.md5($tag_label);
-        $count = count($tag_templates);
-        $tag_index++;
+if (count($templates_by_category) > 0) {
+    $category_index = 0;
+    foreach ($templates_by_category as $category_label => $category_templates) {
+        $category_id = 'cat_'.md5($category_label);
+        $count = count($category_templates);
+        $category_index++;
 
-        // Tag folder header (collapsible) - Dolibarr style
-        print '<div class="template-tag-folder" data-tag="'.dol_escape_htmltag(strtolower($tag_label)).'" style="margin-bottom: 10px;">';
-        print '<div class="folder-header" onclick="toggleTagFolder(\''.$tag_id.'\')" style="cursor: pointer; padding: 8px; background: #e8e8e8; margin-bottom: 0; border-radius: 3px 3px 0 0;">';
-        print '<span id="'.$tag_id.'_icon">'.img_picto('', '1downarrow', 'class="imgdownforline"').'</span> ';
-        print '<strong>'.img_picto('', 'folder', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($tag_label).'</strong>';
+        // Category folder header (collapsible) - Dolibarr style
+        print '<div class="template-category-folder" data-category="'.dol_escape_htmltag(strtolower($category_label)).'" style="margin-bottom: 10px;">';
+        print '<div class="folder-header" onclick="toggleCategoryFolder(\''.$category_id.'\')" style="cursor: pointer; padding: 8px; background: #e8e8e8; margin-bottom: 0; border-radius: 3px 3px 0 0;">';
+        print '<span id="'.$category_id.'_icon">'.img_picto('', '1downarrow', 'class="imgdownforline"').'</span> ';
+        print '<strong>'.img_picto('', 'category', 'style="vertical-align: middle;"').' '.dol_escape_htmltag($category_label).'</strong>';
         print ' <span class="opacitymedium">('.$count.' '.$langs->trans('Files').')</span>';
         print '</div>';
 
-        // Tag folder content
-        print '<div id="'.$tag_id.'_content" class="folder-content">';
+        // Category folder content
+        print '<div id="'.$category_id.'_content" class="folder-content">';
         print '<table class="noborder centpercent" style="margin-top: 0;">';
 
         // Table header with sortable columns
@@ -310,22 +332,22 @@ if (count($templates_by_tag) > 0) {
         print '<th class="center">'.$langs->trans('Actions').'</th>';
         print '</tr>';
 
-        // Sort templates within tag if needed
+        // Sort templates within category if needed
         if ($sortfield == 'label') {
-            usort($tag_templates, function($a, $b) use ($sortorder) {
+            usort($category_templates, function($a, $b) use ($sortorder) {
                 return $sortorder == 'ASC' ? strcmp($a->label, $b->label) : strcmp($b->label, $a->label);
             });
         } elseif ($sortfield == 'filename') {
-            usort($tag_templates, function($a, $b) use ($sortorder) {
+            usort($category_templates, function($a, $b) use ($sortorder) {
                 return $sortorder == 'ASC' ? strcmp($a->filename, $b->filename) : strcmp($b->filename, $a->filename);
             });
         } elseif ($sortfield == 'filetype') {
-            usort($tag_templates, function($a, $b) use ($sortorder) {
+            usort($category_templates, function($a, $b) use ($sortorder) {
                 return $sortorder == 'ASC' ? strcmp($a->filetype, $b->filetype) : strcmp($b->filetype, $a->filetype);
             });
         }
 
-        foreach ($tag_templates as $tpl) {
+        foreach ($category_templates as $tpl) {
             print '<tr class="oddeven">';
 
             // Label with info icon
@@ -363,7 +385,7 @@ if (count($templates_by_tag) > 0) {
 
         print '</table>';
         print '</div>'; // folder-content
-        print '</div>'; // template-tag-folder
+        print '</div>'; // template-category-folder
     }
 } else {
     print '<table class="noborder centpercent">';
@@ -387,9 +409,9 @@ print '<script type="text/javascript">
 var downArrowHtml = \''.$downArrowJs.'\';
 var rightArrowHtml = \''.$rightArrowJs.'\';
 
-function toggleTagFolder(tagId) {
-    var content = document.getElementById(tagId + "_content");
-    var icon = document.getElementById(tagId + "_icon");
+function toggleCategoryFolder(catId) {
+    var content = document.getElementById(catId + "_content");
+    var icon = document.getElementById(catId + "_icon");
     if (content.style.display === "none") {
         content.style.display = "block";
         icon.innerHTML = downArrowHtml;
@@ -404,7 +426,7 @@ function expandAllFolders() {
     var icons = document.querySelectorAll("[id$=\'_icon\']");
     contents.forEach(function(el) { el.style.display = "block"; });
     icons.forEach(function(el) {
-        if (el.id.startsWith("tag_")) {
+        if (el.id.startsWith("cat_")) {
             el.innerHTML = downArrowHtml;
         }
     });
@@ -415,7 +437,7 @@ function collapseAllFolders() {
     var icons = document.querySelectorAll("[id$=\'_icon\']");
     contents.forEach(function(el) { el.style.display = "none"; });
     icons.forEach(function(el) {
-        if (el.id.startsWith("tag_")) {
+        if (el.id.startsWith("cat_")) {
             el.innerHTML = rightArrowHtml;
         }
     });

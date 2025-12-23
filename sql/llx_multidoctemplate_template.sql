@@ -10,6 +10,7 @@ CREATE TABLE llx_multidoctemplate_template (
     label           VARCHAR(255) NOT NULL,
     description     TEXT,
     tag             VARCHAR(128) NOT NULL DEFAULT '',
+    fk_category     INTEGER DEFAULT NULL,
     fk_usergroup    INTEGER NOT NULL,
     filename        VARCHAR(255) NOT NULL,
     filepath        VARCHAR(512) NOT NULL,
@@ -22,5 +23,7 @@ CREATE TABLE llx_multidoctemplate_template (
     fk_user_creat   INTEGER,
     fk_user_modif   INTEGER,
     import_key      VARCHAR(14),
-    entity          INTEGER DEFAULT 1
+    entity          INTEGER DEFAULT 1,
+    INDEX idx_multidoctemplate_template_fk_category (fk_category),
+    INDEX idx_multidoctemplate_template_fk_usergroup (fk_usergroup)
 ) ENGINE=InnoDB;

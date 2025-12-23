@@ -50,7 +50,7 @@ class modMultiDocTemplate extends DolibarrModules
             '<em>Note: Replace XXX with your extra field code for custom fields.</em>';
 
         // Version
-        $this->version = '1.0.0';
+        $this->version = '2.0.0';
 
         // Module constants
         $this->const_name = 'MAIN_MODULE_MULTIDOCTEMPLATE';
@@ -119,7 +119,11 @@ class modMultiDocTemplate extends DolibarrModules
         );
 
         // Constants
-        $this->const = array();
+        $this->const = array(
+            // Category type for templates (using a high number to avoid conflicts)
+            // This adds "Templates" to the category types in Setup > Tags/Categories
+            array('CATEGORIE_TYPE_TEMPLATE', 'chaine', 'template', 'Category type for document templates', 0, 'current', 1)
+        );
 
         // Boxes/Widgets
         $this->boxes = array();
