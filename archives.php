@@ -464,10 +464,22 @@ function filterTemplates() {
 
     print '<table class="noborder centpercent">';
 
-    // Tag (folder)
+    // Tag (folder) - dropdown with existing tags from templates
     print '<tr class="oddeven">';
-    print '<td class="titlefield">'.$langs->trans('Tag').' ('.$langs->trans('Folder').')</td>';
-    print '<td><input type="text" name="upload_tag" size="40" class="flat" placeholder="e.g. contracts, invoices, reports"></td>';
+    print '<td class="titlefield">'.$langs->trans('Tag').' ('.$langs->trans('Folder').') <span class="star">*</span></td>';
+    print '<td>';
+    print '<select name="upload_tag" class="flat minwidth200" required>';
+    print '<option value="">'.$langs->trans('SelectTag').'</option>';
+    // Use tags from templates (already grouped in $templates_by_tag)
+    if (isset($templates_by_tag) && is_array($templates_by_tag)) {
+        foreach (array_keys($templates_by_tag) as $tag_name) {
+            if ($tag_name != $langs->trans('NoTag')) {
+                print '<option value="'.dol_escape_htmltag($tag_name).'">'.dol_escape_htmltag($tag_name).'</option>';
+            }
+        }
+    }
+    print '</select>';
+    print '</td>';
     print '</tr>';
 
     // Label
